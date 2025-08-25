@@ -1,271 +1,202 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../auth/useAuth';
 
-interface Indicio {
-    expedienteId: string;
-    descripcion: string;
-    color: string;
-    tamaño: string;
-    peso: string;
-    ubicacion: string;
-    tecnico: string;
-}
-
-interface Expediente {
-    id: string;
-    codigo: string;
-}
-
-const IndicioForm = () => {
-    const { token, username, id: userId } = useAuth();
+const Navbar = () => {
+    const [ isOpen, setIsOpen ] = useState(false);
+    const [ isDropdownOpen, setIsDropdownOpen ] = useState(false);
+    const { isAuthenticated, logout, rol } = useAuth();
     const navigate = useNavigate();
 
-    const [ indicio, setIndicio ] = useState<Indicio>({
-        expedienteId: '',
-        descripcion: '',
-        color: '',
-        tamaño: '',
-        peso: '',
-        ubicacion: '',
-        tecnico: username ?? ''
-    });
+    const toggleMenu = () => setIsOpen(!isOpen);
 
-    const [ expedientesDisponibles, setExpedientesDisponibles ] = useState<Expediente[]>([]);
-    const [ loading, setLoading ] = useState<boolean>(true);
-    const [ feedback, setFeedback ] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-
-    useEffect(() => {
-        const fetchExpedientes = async () => {
-            setLoading(true);
-            try {
-                const res = await fetch('http://localhost:3001/api/expedientes', {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: `Bearer ${token}`
-                    }
-                });
-                const data = await res.json();
-                setExpedientesDisponibles(data);
-            } catch {
-                alert('Error al cargar los expedientes. Intente de nuevo más tarde.');
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchExpedientes();
-    }, [ token ]);
-
-    useEffect(() => {
-        setIndicio(prev => ({ ...prev, tecnico: username ?? '' }));
-    }, [ username ]);
-
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        const { name, value } = e.target;
-        setIndicio({ ...indicio, [ name ]: value });
+    const handleLogout = () => {
+        logout();
+        navigate('/login');
     };
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setFeedback(null);
-
-        // Validación de campos obligatorios
-        if (!indicio.expedienteId || !indicio.descripcion) {
-            setFeedback({ type: 'error', message: 'Todos los campos obligatorios deben estar completos.' });
-            return;
-        }
-
-        // Validar que expedienteId sea un número
-        const expedienteIdNum = Number(indicio.expedienteId);
-        if (isNaN(expedienteIdNum)) {
-            setFeedback({ type: 'error', message: 'El expediente seleccionado no es válido.' });
-            return;
-        }
-
-        // Validar que userId esté presente y sea número
-        if (!userId || isNaN(Number(userId))) {
-            setFeedback({ type: 'error', message: 'No se pudo obtener el técnico actual.' });
-            return;
-        }
-
-        // Convierte peso a número si es posible
-        let pesoValue: number | null = null;
-        if (indicio.peso.trim() !== '') {
-            pesoValue = Number(indicio.peso);
-            if (isNaN(pesoValue)) {
-                setFeedback({ type: 'error', message: 'El peso debe ser un número válido.' });
-                return;
-            }
-        }
-
-        try {
-            const payload = {
-                expediente_id: expedienteIdNum,
-                descripcion: indicio.descripcion,
-                color: indicio.color,
-                tamano: indicio.tamaño,
-                peso: pesoValue,
-                ubicacion: indicio.ubicacion,
-                tecnico_id: Number(userId)
-            };
-            const response = await fetch('http://localhost:3001/api/indicios', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
-                body: JSON.stringify(payload)
-            });
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || 'Error al crear indicio');
-            }
-
-            alert('Indicio registrado correctamente.');
-            navigate('/indicio'); // Navigate to /indicio
-
-            setIndicio({
-                expedienteId: '',
-                descripcion: '',
-                color: '',
-                tamaño: '',
-                peso: '',
-                ubicacion: '',
-                tecnico: username ?? ''
-            });
-        } catch (error: unknown) {
-            console.error('Error al crear indicio:', error);
-            if (error instanceof Error) {
-                setFeedback({ type: 'error', message: error.message || 'Error desconocido' });
-            } else {
-                setFeedback({ type: 'error', message: 'Error desconocido' });
-            }
-        }
-    };
-
-    // Oculta el mensaje de feedback después de 5 segundos
-    useEffect(() => {
-        if (feedback) {
-            const timer = setTimeout(() => setFeedback(null), 5000);
-            return () => clearTimeout(timer);
-        }
-    }, [ feedback ]);
 
     return (
-        <div>
-            <button
-                onClick={() => navigate('/indicio')}
-                className="bg-gray-200 text-blue-700 px-4 py-2 rounded hover:bg-gray-300 transition-all mb-4"
-            >
-                ← Volver a Indicios
-            </button>
-            <form onSubmit={handleSubmit} className="max-w-xl mx-auto p-6 bg-white shadow-md rounded-md mt-8">
-                <h2 className="text-2xl font-semibold mb-4 text-blue-800">Registrar Indicio</h2>
+        <nav className="bg-blue-800 text-white shadow-md">
+            <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+                <h1 className="text-xl font-bold">API- Sistema de Gestiones</h1>
 
-                {feedback && (
-                    <p className={`mb-4 ${feedback.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
-                        {feedback.message}
-                    </p>
-                )}
-
-                <div className="mb-4">
-                    <label className="block font-medium text-gray-700">Expediente</label>
-                    <select
-                        name="expedienteId"
-                        value={indicio.expedienteId}
-                        onChange={handleChange}
-                        required
-                        className="w-full border border-gray-300 px-3 py-2 rounded-md"
-                        disabled={loading}
-                    >
-                        <option value="">Seleccione un expediente</option>
-                        {expedientesDisponibles.map(exp => (
-                            <option key={exp.id} value={exp.id}>
-                                {exp.codigo}
-                            </option>
-                        ))}
-                    </select>
+                {/* Botón hamburguesa */}
+                <div className="md:hidden">
+                    <button onClick={toggleMenu}>
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {isOpen ? (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            ) : (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                            )}
+                        </svg>
+                    </button>
                 </div>
 
-                <div className="mb-4">
-                    <label className="block font-medium text-gray-700">Descripción</label>
-                    <input
-                        type="text"
-                        name="descripcion"
-                        value={indicio.descripcion}
-                        onChange={handleChange}
-                        required
-                        className="w-full border border-gray-300 px-3 py-2 rounded-md"
-                    />
-                </div>
+                {/* Menú en escritorio */}
+                <ul className="hidden md:flex gap-4 text-sm items-center">
+                    {isAuthenticated && (
+                        <li><Link to="/" className="px-3 py-2 rounded hover:bg-blue-700">Inicio</Link></li>
+                    )}
 
-                <div className="mb-4 grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="block font-medium text-gray-700">Color</label>
-                        <input
-                            type="text"
-                            name="color"
-                            value={indicio.color}
-                            onChange={handleChange}
-                            className="w-full border border-gray-300 px-3 py-2 rounded-md"
-                        />
-                    </div>
-                    <div>
-                        <label className="block font-medium text-gray-700">Tamaño</label>
-                        <input
-                            type="text"
-                            name="tamaño"
-                            value={indicio.tamaño}
-                            onChange={handleChange}
-                            className="w-full border border-gray-300 px-3 py-2 rounded-md"
-                        />
-                    </div>
-                </div>
+                    {isAuthenticated && rol !== 'coordinador' && (
+                        <>
+                            <li><Link to="/expediente" className="px-3 py-2 rounded hover:bg-blue-700">Registro de Expedientes</Link></li>
+                            <li><Link to="/indicio" className="px-3 py-2 rounded hover:bg-blue-700">Registro de Indicios</Link></li>
+                        </>
+                    )}
 
-                <div className="mb-4 grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="block font-medium text-gray-700">Peso</label>
-                        <input
-                            type="text"
-                            name="peso"
-                            value={indicio.peso}
-                            onChange={handleChange}
-                            className="w-full border border-gray-300 px-3 py-2 rounded-md"
-                        />
-                    </div>
-                    <div>
-                        <label className="block font-medium text-gray-700">Ubicación</label>
-                        <input
-                            type="text"
-                            name="ubicacion"
-                            value={indicio.ubicacion}
-                            onChange={handleChange}
-                            className="w-full border border-gray-300 px-3 py-2 rounded-md"
-                        />
-                    </div>
-                </div>
+                    {isAuthenticated && rol === 'coordinador' && (
+                        <li><Link to="/revisar" className="px-3 py-2 rounded hover:bg-blue-700">Revisar Expedientes</Link></li>
+                    )}
 
-                <div className="mb-6">
-                    <label className="block font-medium text-gray-700">Técnico que registra</label>
-                    <input
-                        type="text"
-                        name="tecnico"
-                        value={indicio.tecnico}
-                        readOnly
-                        className="w-full bg-gray-100 border border-gray-300 px-3 py-2 rounded-md"
-                    />
-                </div>
+                    {isAuthenticated && (
+                        <li className="relative group">
+                            <button className="px-3 py-2 rounded hover:bg-blue-700">
+                                Informes y Estadísticas
+                            </button>
+                            <ul className="absolute left-0 mt-2 w-48 bg-white text-black shadow-lg rounded z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <li>
+                                    <Link
+                                        to="/reporte-expedientes"
+                                        className="block px-4 py-2 hover:bg-gray-200"
+                                    >
+                                        Reporte de Expedientes
+                                    </Link>
+                                </li>
+                                <li>
+                                    <Link
+                                        to="/reporte-indicios"
+                                        className="block px-4 py-2 hover:bg-gray-200"
+                                    >
+                                        Reporte de Indicios
+                                    </Link>
+                                </li>
+                                <li>
+                                    <Link
+                                        to="/reporte-aprobaciones"
+                                        className="block px-4 py-2 hover:bg-gray-200"
+                                    >
+                                        Reporte de Aprobaciones y Rechazos
+                                    </Link>
+                                </li>
+                            </ul>
+                        </li>
+                    )}
 
-                <button
-                    type="submit"
-                    className="bg-blue-700 text-white px-6 py-2 rounded hover:bg-blue-800 transition-all"
-                >
-                    Guardar Indicio
-                </button>
-            </form>
-        </div>
+                    {isAuthenticated && (
+                        <li>
+                            <button
+                                onClick={handleLogout}
+                                className="bg-red-500 hover:bg-red-600 px-3 py-2 rounded text-white"
+                            >
+                                Cerrar sesión
+                            </button>
+                        </li>
+                    )}
+
+                    {!isAuthenticated && (
+                        <li>
+                            <Link
+                                to="/login"
+                                className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded text-white"
+                            >
+                                Iniciar sesión
+                            </Link>
+                        </li>
+                    )}
+                </ul>
+            </div>
+
+            {/* Menú móvil */}
+            {isOpen && (
+                <ul className="md:hidden px-4 pb-4 text-sm space-y-2 bg-blue-700">
+                    {isAuthenticated && (
+                        <li><Link to="/" onClick={toggleMenu} className="block py-2">Inicio</Link></li>
+                    )}
+
+                    {isAuthenticated && rol !== 'coordinador' && (
+                        <>
+                            <li><Link to="/expediente" onClick={toggleMenu} className="block py-2">Registro de Expedientes</Link></li>
+                            <li><Link to="/indicio" onClick={toggleMenu} className="block py-2">Registro de Indicios</Link></li>
+                        </>
+                    )}
+
+                    {isAuthenticated && rol === 'coordinador' && (
+                        <li><Link to="/revisar" onClick={toggleMenu} className="block py-2">Revisar Expedientes</Link></li>
+                    )}
+
+                    {isAuthenticated && (
+                        <li>
+                            <button
+                                onClick={() => {
+                                    toggleMenu();
+                                    handleLogout();
+                                }}
+                                className="w-full bg-red-500 hover:bg-red-600 text-white py-2 rounded"
+                            >
+                                Cerrar sesión
+                            </button>
+                        </li>
+                    )}
+
+                    {!isAuthenticated && (
+                        <li>
+                            <Link
+                                to="/login"
+                                onClick={toggleMenu}
+                                className="block bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded text-center"
+                            >
+                                Iniciar sesión
+                            </Link>
+                        </li>
+                    )}
+
+                    {isAuthenticated && (
+                        <li>
+                            <button
+                                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                className="block w-full text-left py-2 hover:bg-blue-600"
+                            >
+                                Informes y Estadísticas
+                            </button>
+                            {isDropdownOpen && (
+                                <ul className="pl-4 space-y-2 z-10">
+                                    <li>
+                                        <Link
+                                            to="/reporte-expedientes"
+                                            onClick={toggleMenu}
+                                            className="block py-2 hover:bg-blue-600"
+                                        >
+                                            Reporte de Expedientes
+                                        </Link>
+                                    </li>
+                                    <li>
+                                        <Link
+                                            to="/reporte-indicios"
+                                            onClick={toggleMenu}
+                                            className="block py-2 hover:bg-blue-600"
+                                        >
+                                            Reporte de Indicios
+                                        </Link>
+                                    </li>
+                                    <li>
+                                        <Link
+                                            to="/reporte-aprobaciones"
+                                            onClick={toggleMenu}
+                                            className="block py-2 hover:bg-blue-600"
+                                        >
+                                            Reporte de Aprobaciones y Rechazos
+                                        </Link>
+                                    </li>
+                                </ul>
+                            )}
+                        </li>
+                    )}
+                </ul>
+            )}
+        </nav>
     );
 };
 
-export default IndicioForm;
+export default Navbar;
