@@ -8,7 +8,7 @@ export interface AuthContextType {
     id: string | null;
     username: string | null;
     token: string | null;
-    login: (username: string, password: string) => Promise<void>;
+    login: (email: string, password: string) => Promise<void>;
     logout: () => void;
 }
 

@@ -16,7 +16,7 @@ const Navbar = () => {
     };
 
     return (
-        <nav className="bg-blue-800 text-white shadow-md">
+        <nav className="bg-blue-500 text-white shadow-md">
             <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
                 <h1 className="text-xl font-bold">API- Sistema de Gestiones</h1>
 
