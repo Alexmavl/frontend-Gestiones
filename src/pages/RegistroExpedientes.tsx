@@ -517,7 +517,7 @@ const RegistroExpediente = () => {
         {/* Modal edición (overlay transparente para ver el sistema) */}
         {modalOpen && editing && (
           <div
-            className="fixed inset-0 bg-transparent flex items-center justify-center z-50 p-4"
+           className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4"
             onClick={closeModal}
           >
             <div

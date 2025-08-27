@@ -13,14 +13,12 @@ import "sweetalert2/dist/sweetalert2.min.css";
 
 interface Indicio {
   id?: number;
-  // ⚠️ IMPORTANTE: debe venir el código del indicio para poder editar/activar por código:
-  codigo: string; // <-- asegúrate que tu SP lo incluya en el listado
+  codigo: string; 
   expediente_codigo: string;
   descripcion: string;
   color?: string | null;
   tamano?: string | null;
   peso?: number | null;
-  // ubicacion?: string | null;  // tu controlador de actualizar/crear NO usa ubicacion; la dejo fuera del PUT
   tecnico_id?: number;
   fecha_registro?: string | null;
   activo: boolean;
@@ -506,7 +504,7 @@ const RegistroIndicio = () => {
               title="Crear nuevo expediente"
             >
               <PlusIcon className="h-5 w-5" />
-              Nuevo Expediente
+              Nuevo Indicio
             </button>
           </div>
 

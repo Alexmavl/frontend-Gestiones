@@ -7,14 +7,13 @@ import {
   BeakerIcon,
   ClipboardDocumentCheckIcon,
   ChartBarIcon,
-  DocumentChartBarIcon,
-  ClipboardDocumentListIcon,
-  ChartPieIcon,
   ArrowRightOnRectangleIcon,
-  ChevronDownIcon,
   Bars3Icon,
   XMarkIcon,
   UserIcon,
+  ChevronDownIcon,
+  ListBulletIcon,
+  UserPlusIcon,
 } from '@heroicons/react/24/solid';
 
 type RoleKey = 'coordinador' | 'tecnico' | 'default';
@@ -34,17 +33,26 @@ const BASE_ITEMS: NavItem[] = [
   { to: '/revisar', label: 'Revisar Expedientes', icon: <ClipboardDocumentCheckIcon className="w-5 h-5" />, roles: ['coordinador'] },
 ];
 
+// Submenú de USUARIOS (solo coordinador)
+const USERS_MENU: NavItem[] = [
+  { to: '/usuarios', label: 'Listado de Usuarios', icon: <ListBulletIcon className="w-5 h-5" />, roles: ['coordinador'] },
+  { to: '/usuarios/crear', label: 'Crear Usuario', icon: <UserPlusIcon className="w-5 h-5" />, roles: ['coordinador'] },
+];
+
+/** ============ INFORMES COMENTADO ============
+import { DocumentChartBarIcon, ClipboardDocumentListIcon, ChartPieIcon } from '@heroicons/react/24/solid';
 const REPORT_ITEMS: NavItem[] = [
   { to: '/reporte-expedientes', label: 'Reporte de Expedientes', icon: <DocumentChartBarIcon className="w-5 h-5" />, roles: ['coordinador', 'tecnico', 'default'] },
   { to: '/reporte-indicios', label: 'Reporte de Indicios', icon: <ClipboardDocumentListIcon className="w-5 h-5" />, roles: ['coordinador', 'tecnico', 'default'] },
-  { to: '/reporte-aprobaciones', label: 'Reporte de Aprobaciones y Rechazos', icon: <ChartPieIcon className="w-5 h-5" />, roles: ['coordinador', 'tecnico', 'default'] },
+  { to: '/reporte-aprobaciones', label: 'Aprobaciones y Rechazos', icon: <ChartPieIcon className="w-5 h-5" />, roles: ['coordinador', 'tecnico', 'default'] },
 ];
+============================================== */
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ');
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [isReportsOpenMobile, setIsReportsOpenMobile] = useState(false);
+  const [isUsersOpenMobile, setIsUsersOpenMobile] = useState(false); // acordeón móvil para Usuarios
   const { isAuthenticated, logout, rol, username } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -53,7 +61,8 @@ const Navbar = () => {
   const roleUI = ROLE_UI[roleKey] ?? ROLE_UI.default;
 
   const mainItems = useMemo(() => BASE_ITEMS.filter(i => i.roles.includes(roleKey)), [roleKey]);
-  const reportItems = useMemo(() => REPORT_ITEMS.filter(i => i.roles.includes(roleKey)), [roleKey]);
+  const usersItems = useMemo(() => USERS_MENU.filter(i => i.roles.includes(roleKey)), [roleKey]);
+  // const reportItems = useMemo(() => REPORT_ITEMS.filter(i => i.roles.includes(roleKey)), [roleKey]); // ← INFORMES COMENTADO
 
   const toggleMenu = () => setIsOpen(v => !v);
   const handleLogout = () => {
@@ -63,7 +72,7 @@ const Navbar = () => {
 
   useEffect(() => {
     setIsOpen(false);
-    setIsReportsOpenMobile(false);
+    setIsUsersOpenMobile(false);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -95,7 +104,7 @@ const Navbar = () => {
           </div>
           <div>
             <h1 className="text-base md:text-lg font-bold text-white">Sistema de Gestiones</h1>
-            <p className="text-blue-100 text-xs md:text-sm">API - SIGES</p>
+            <p className="text-blue-100 text-xs md:text-sm">Tarea - Desarrollo Web</p>
           </div>
         </div>
 
@@ -108,32 +117,56 @@ const Navbar = () => {
               </li>
             ))}
 
-            {reportItems.length > 0 && (
+            {/* ======= Submenú USUARIOS (ESCRITORIO) ======= */}
+            {roleKey === 'coordinador' && usersItems.length > 0 && (
               <li className="relative group">
                 <button className="flex items-center gap-2 px-3 py-2 rounded-lg text-white/90 hover:bg-white/10 transition">
-                  <ChartBarIcon className="w-5 h-5" />
-                  <span className="font-semibold">Informes</span>
+                  <UserIcon className="w-5 h-5" />
+                  <span className="font-semibold">Usuarios</span>
                   <ChevronDownIcon className="w-4 h-4" />
                 </button>
-                <ul className="absolute left-0 mt-2 w-72 bg-white rounded-xl shadow-2xl border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 p-2 space-y-1">
-                  {reportItems.map(ri => (
-                    <li key={ri.to}>
+                <ul className="absolute left-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 p-2 space-y-1">
+                  {usersItems.map(ui => (
+                    <li key={ui.to}>
                       <NavLink
-                        to={ri.to}
+                        to={ui.to}
                         className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-100 text-gray-700"
                       >
-                        {ri.icon}
-                        <span>{ri.label}</span>
+                        {ui.icon}
+                        <span>{ui.label}</span>
                       </NavLink>
                     </li>
                   ))}
                 </ul>
               </li>
             )}
+
+            {/* ======= INFORMES (ESCRITORIO) COMENTADO =======
+            <li className="relative group">
+              <button className="flex items-center gap-2 px-3 py-2 rounded-lg text-white/90 hover:bg-white/10 transition">
+                <ChartBarIcon className="w-5 h-5" />
+                <span className="font-semibold">Informes</span>
+                <ChevronDownIcon className="w-4 h-4" />
+              </button>
+              <ul className="absolute left-0 mt-2 w-72 bg-white rounded-xl shadow-2xl border border-gray-100 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 p-2 space-y-1">
+                {reportItems.map(ri => (
+                  <li key={ri.to}>
+                    <NavLink
+                      to={ri.to}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-100 text-gray-700"
+                    >
+                      {ri.icon}
+                      <span>{ri.label}</span>
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </li>
+            ================================================ */}
           </ul>
         )}
 
-        {/* Usuario + Rol + Logout (alineado en la misma línea) */}
+        {/* Usuario + Rol + Logout */}
         {isAuthenticated && (
           <div className="hidden md:flex items-center gap-4 shrink-0">
             <div className="flex items-center gap-2">
@@ -173,9 +206,9 @@ const Navbar = () => {
               <div className="p-2 bg-white/20 rounded-lg">
                 <UserIcon className="w-5 h-5 text-white" />
               </div>
-              <div>
+              <div className="leading-tight">
                 <p className="text-white font-semibold text-sm">{username ?? 'Usuario'}</p>
-                <span className={cx('inline-flex items-center px-2 py-1 rounded-full text-xs font-medium text-white bg-gradient-to-r', roleUI.grad)}>
+                <span className={cx('inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium text-white bg-gradient-to-r', roleUI.grad)}>
                   {roleUI.badge}
                 </span>
               </div>
@@ -190,26 +223,27 @@ const Navbar = () => {
                 </li>
               ))}
 
-            {isAuthenticated && reportItems.length > 0 && (
+            {/* ======= Submenú USUARIOS (MÓVIL) ======= */}
+            {roleKey === 'coordinador' && usersItems.length > 0 && (
               <li>
                 <button
-                  onClick={() => setIsReportsOpenMobile(v => !v)}
+                  onClick={() => setIsUsersOpenMobile(v => !v)}
                   className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-white/90 hover:bg-white/10"
                 >
-                  <ChartBarIcon className="w-5 h-5" />
-                  <span className="font-semibold">Informes</span>
-                  <ChevronDownIcon className={cx('w-4 h-4 ml-auto', isReportsOpenMobile && 'rotate-180')} />
+                  <UserIcon className="w-5 h-5" />
+                  <span className="font-semibold">Usuarios</span>
+                  <ChevronDownIcon className={cx('w-4 h-4 ml-auto', isUsersOpenMobile && 'rotate-180')} />
                 </button>
-                {isReportsOpenMobile && (
+                {isUsersOpenMobile && (
                   <ul className="pl-4 mt-2 space-y-2 bg-white/5 rounded-xl p-3">
-                    {reportItems.map(ri => (
-                      <li key={ri.to}>
+                    {usersItems.map(ui => (
+                      <li key={ui.to}>
                         <NavLink
-                          to={ri.to}
+                          to={ui.to}
                           className="flex items-center gap-3 py-2 px-3 rounded-lg text-white/90 hover:text-white hover:bg-white/10"
                         >
-                          {ri.icon}
-                          <span className="font-medium">{ri.label}</span>
+                          {ui.icon}
+                          <span className="font-medium">{ui.label}</span>
                         </NavLink>
                       </li>
                     ))}
@@ -217,6 +251,34 @@ const Navbar = () => {
                 )}
               </li>
             )}
+
+            {/* ======= INFORMES (MÓVIL) COMENTADO =======
+            <li>
+              <button
+                onClick={() => setIsReportsOpenMobile(v => !v)}
+                className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-white/90 hover:bg-white/10"
+              >
+                <ChartBarIcon className="w-5 h-5" />
+                <span className="font-semibold">Informes</span>
+                <ChevronDownIcon className={cx('w-4 h-4 ml-auto', isReportsOpenMobile && 'rotate-180')} />
+              </button>
+              {isReportsOpenMobile && (
+                <ul className="pl-4 mt-2 space-y-2 bg-white/5 rounded-xl p-3">
+                  {reportItems.map(ri => (
+                    <li key={ri.to}>
+                      <NavLink
+                        to={ri.to}
+                        className="flex items-center gap-3 py-2 px-3 rounded-lg text-white/90 hover:text-white hover:bg-white/10"
+                      >
+                        {ri.icon}
+                        <span className="font-medium">{ri.label}</span>
+                      </NavLink>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+            ============================================ */}
 
             {isAuthenticated && (
               <li className="pt-4 border-t border-white/20">
