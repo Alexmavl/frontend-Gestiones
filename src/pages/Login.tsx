@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import useAuth from "../auth/useAuth";
 import {
@@ -11,17 +11,22 @@ import {
 } from "react-icons/fi";
 
 const Login = () => {
-  const { login } = useAuth();
+  const { login } = useAuth(); // login(email, password)
   const navigate = useNavigate();
 
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");            // <- antes username
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const emailRef = useRef<HTMLInputElement | null>(null);
+
   useEffect(() => {
+    // Evitar scroll del fondo mientras está el login
     document.body.style.overflow = "hidden";
+    // Foco inicial
+    emailRef.current?.focus();
     return () => {
       document.body.style.overflow = "auto";
     };
@@ -29,18 +34,21 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (loading) return; // evita doble submit
     setError("");
 
-    if (!username.trim() || !password.trim()) {
-      setError("Por favor completa usuario y contraseña.");
+    if (!email.trim() || !password.trim()) {
+      setError("Por favor completa correo y contraseña.");
       return;
     }
 
     setLoading(true);
     try {
-      await login(username, password);
+      // Asegúrate de que login espere email (no username)
+      await login(email, password);
       navigate("/");
     } catch (err: unknown) {
+      // Muestra mensaje legible
       if (err instanceof Error && err.message) setError(err.message);
       else setError("No se pudo iniciar sesión. Verifica tus credenciales.");
     } finally {
@@ -51,19 +59,14 @@ const Login = () => {
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-4 bg-transparent">
       <div className="w-full max-w-md">
-        {/* Tarjeta limpia, sin fondo global */}
         <div className="bg-white border border-gray-200 shadow-xl rounded-2xl overflow-hidden">
           {/* Encabezado */}
           <div className="px-8 pt-8 pb-4 text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
               <FiLogIn className="h-6 w-6 text-cyan-700" />
             </div>
-            <h1 className="text-2xl font-extrabold text-gray-800">
-              Iniciar sesión
-            </h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Sistema Gestiones 
-            </p>
+            <h1 className="text-2xl font-extrabold text-gray-800">Iniciar sesión</h1>
+            <p className="mt-1 text-sm text-gray-500">Sistema Gestiones</p>
           </div>
 
           {/* Error */}
@@ -80,20 +83,22 @@ const Login = () => {
 
           {/* Formulario */}
           <form onSubmit={handleSubmit} className="px-8 pb-8">
-            {/* Usuario */}
+            {/* Email */}
             <label className="mb-2 block text-sm font-medium text-gray-700">
-              Usuario
+              Correo
             </label>
             <div className="mb-4 flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2 focus-within:ring-2 focus-within:ring-indigo-300">
               <FiUser className="text-cyan-700" />
               <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full bg-transparent placeholder-gray-400 text-gray-900 outline-none"
+                ref={emailRef}
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-transparent placeholder-gray-400 text-gray-900 outline-none disabled:opacity-60"
                 placeholder="correo@empresa.com"
-                autoComplete="username"
+                autoComplete="email"
                 required
+                disabled={loading}
               />
             </div>
 
@@ -107,24 +112,22 @@ const Login = () => {
                 type={showPass ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-transparent placeholder-gray-400 text-gray-900 outline-none"
+                className="w-full bg-transparent placeholder-gray-400 text-gray-900 outline-none disabled:opacity-60"
                 placeholder="Tu contraseña"
                 autoComplete="current-password"
                 required
+                disabled={loading}
               />
               <button
                 type="button"
                 onClick={() => setShowPass((v) => !v)}
-                className="rounded-md p-1 hover:bg-gray-100 active:scale-95 transition"
-                aria-label={
-                  showPass ? "Ocultar contraseña" : "Mostrar contraseña"
-                }
+                className="rounded-md p-1 hover:bg-gray-100 active:scale-95 transition disabled:opacity-60"
+                aria-label={showPass ? "Ocultar contraseña" : "Mostrar contraseña"}
+                disabled={loading}
               >
                 {showPass ? <FiEyeOff /> : <FiEye />}
               </button>
             </div>
-
-          
 
             {/* Botón */}
             <button

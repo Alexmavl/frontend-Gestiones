@@ -12,14 +12,14 @@ import Swal from "sweetalert2";
 import "sweetalert2/dist/sweetalert2.min.css";
 
 interface Indicio {
-  id?: number;
+  id?: string;
   codigo: string; 
   expediente_codigo: string;
   descripcion: string;
   color?: string | null;
   tamano?: string | null;
   peso?: number | null;
-  tecnico_id?: number;
+  tecnico_id?: string;
   fecha_registro?: string | null;
   activo: boolean;
   estado?: "pendiente" | "aprobado" | "rechazado";

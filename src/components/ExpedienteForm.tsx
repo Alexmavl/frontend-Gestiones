@@ -135,7 +135,7 @@ const ExpedienteForm = () => {
     if (isDirtyRef.current && (expediente.codigo || expediente.descripcion)) {
       const result = await Swal.fire({
         title: "¿Salir sin guardar?",
-        text: "Tienes cambios sin guardar. ¿Estás seguro? consulte primero no sea un gran ANIMAL",
+        text: "Tienes cambios sin guardar. ¿Estás seguro? ",
         icon: "warning",
         showCancelButton: true,
         confirmButtonText: "Sí, salir",

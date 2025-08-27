@@ -8,36 +8,104 @@ import {
   ClipboardDocumentListIcon,
   ExclamationTriangleIcon,
   ArrowPathIcon,
+  MagnifyingGlassIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/solid";
 
 interface Indicio {
-  id: number;
+  id: string;
   descripcion: string | null;
   color: string | null;
   tamano: string | null;
   peso: number | null;
   ubicacion: string | null;
-  tecnico_id?: number;
+  tecnico_id?: string;
 }
 
 type Estado = "pendiente" | "aprobado" | "rechazado";
 
 interface Expediente {
-  id?: number; // opcional si tu API no lo envía
+  id?: string;
   codigo: string;
   fecha_registro: string | null;
-  tecnico_username: string;
-  tecnico_id: number;
+  tecnico_nombre: string;
+  tecnico_id: string;
   estado: Estado;
   descripcion?: string | null;
   justificacion?: string;
-  aprobador_id?: number | null;
-  aprobador_username?: string | null;
+  aprobador_id?: string | null;
+  aprobador_nombre?: string | null;
   fecha_estado?: string | null;
+  activo?: boolean;
   indicios: Indicio[];
 }
 
-const API_BASE = "http://localhost:3000";
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+const LIST_PATH = "/expedientes";
+const PAGE_SIZE = 10;
+
+/** ====== Helpers ====== */
+async function safeJson(resp: Response) {
+  const ct = resp.headers.get("content-type") || "";
+  if (resp.status === 204) return {};
+  if (!ct.includes("application/json")) {
+    const text = await resp.text().catch(() => "");
+    try {
+      return text ? JSON.parse(text) : {};
+    } catch {
+      return { raw: text };
+    }
+  }
+  return resp.json().catch(() => ({}));
+}
+
+/** Mapea posibles variaciones del backend a nuestro shape fijo */
+function toExpediente(exp: any, indicios: Indicio[]): Expediente {
+  return {
+    id: String(exp?.id ?? ""),
+    codigo: String(exp?.codigo ?? ""),
+    // fecha_registro puede venir como fecha_registro o creado_en
+    fecha_registro: exp?.fecha_registro ?? exp?.creado_en ?? null,
+
+    // nombre del técnico puede venir con distintas llaves
+    tecnico_nombre:
+      exp?.tecnico_nombre ??
+      exp?.tecnico_username ?? // si lo aliaste así en el SP
+      exp?.tecnico?.nombre ??
+      exp?.tecnico?.username ??
+      "",
+    tecnico_id: String(exp?.tecnico_id ?? ""),
+
+    estado: (exp?.estado ?? "pendiente") as Estado,
+    descripcion: exp?.descripcion ?? null,
+    justificacion: exp?.justificacion ?? null,
+
+    // aprobador puede venir con varias llaves
+    aprobador_id: exp?.aprobador_id != null ? String(exp.aprobador_id) : null,
+    aprobador_nombre:
+      exp?.aprobador_nombre ??
+      exp?.aprobador_username ??
+      exp?.aprobador?.nombre ??
+      null,
+
+    fecha_estado: exp?.fecha_estado ?? null,
+    activo: exp?.activo === true || exp?.activo === 1 || exp?.activo === "1",
+    indicios,
+  };
+}
+
+/** Normaliza filas de indicios para evitar tipos inesperados */
+function normalizeIndicio(r: any): Indicio {
+  return {
+    id: String(r?.id),
+    descripcion: r?.descripcion ?? null,
+    color: r?.color ?? null,
+    tamano: r?.tamano ?? null,
+    peso: r?.peso ?? null,
+    ubicacion: r?.ubicacion ?? null,
+    tecnico_id: r?.tecnico_id != null ? String(r?.tecnico_id) : undefined,
+  };
+}
 
 const RevisarExpedientes = () => {
   const { token, id: userId, username: userUsername } = useAuth();
@@ -45,10 +113,16 @@ const RevisarExpedientes = () => {
   const [expedientes, setExpedientes] = useState<Expediente[]>([]);
   const [loading, setLoading] = useState(true);
   const [rechazoJustificacion, setRechazoJustificacion] = useState("");
-  const [expedienteRechazando, setExpedienteRechazando] = useState<string | null>(null); // por código
+  const [expedienteRechazando, setExpedienteRechazando] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Helpers
+  // 🔎 búsqueda por código
+  const [codigoQuery, setCodigoQuery] = useState("");
+
+  // 🔢 paginación servidor
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+
   const authHeaders = useMemo(
     () => ({
       Authorization: `Bearer ${token}`,
@@ -57,6 +131,10 @@ const RevisarExpedientes = () => {
     }),
     [token]
   );
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const to = total === 0 ? 0 : Math.min(page * PAGE_SIZE, total);
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "";
@@ -67,47 +145,103 @@ const RevisarExpedientes = () => {
     )}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
   };
 
-  // Cargar expedientes + sus indicios (por código)
-  const fetchExpedientes = async () => {
+  // Cargar indicios por código (paginado 50) — tu ruta con "E" mayúscula
+  const fetchIndiciosDe = async (codigo: string) => {
+    const url = new URL(`${API_BASE}/Expedientes/${encodeURIComponent(codigo)}/Indicios`);
+    url.searchParams.set("q", "");
+    url.searchParams.set("page", "1");
+    url.searchParams.set("pageSize", "50");
+
+    try {
+      const indRes = await fetch(url.toString(), { headers: authHeaders });
+      const j = await safeJson(indRes);
+      const rows: any[] = Array.isArray(j) ? j : (j as any)?.data ?? [];
+      return rows.map(normalizeIndicio);
+    } catch {
+      return [];
+    }
+  };
+
+  // Listar todos (paginado) o buscar por código (1 resultado)
+  const fetchExpedientes = async (codigo?: string) => {
     setLoading(true);
     try {
-      const expRes = await fetch(`${API_BASE}/expedientes`, {
-        headers: authHeaders,
-      });
-      if (!expRes.ok) throw new Error("No se pudo obtener expedientes");
-      const raw = await expRes.json();
+      if (codigo && codigo.trim()) {
+        const res = await fetch(`${API_BASE}/expedientes/${encodeURIComponent(codigo.trim())}`, {
+          headers: authHeaders,
+        });
+        if (res.status === 404) {
+          setExpedientes([]);
+          setTotal(0);
+          await Swal.fire({
+            title: "Sin resultados",
+            text: `No se encontró el expediente con código ${codigo.trim()}.`,
+            icon: "info",
+            confirmButtonText: "Ok",
+            confirmButtonColor: "#3b82f6",
+          });
+          return;
+        }
+        if (!res.ok) {
+          const j = await safeJson(res);
+          throw new Error((j as any)?.message || "No se pudo obtener el expediente.");
+        }
 
-      // Ajusta aquí si tu API devuelve {data: [...]}
-      const base: Expediente[] = Array.isArray(raw) ? raw : raw?.data ?? [];
+        const data = await safeJson(res);
+        const expBase: any =
+          (Array.isArray(data) ? data[0] : (data as any)?.data ?? data) ?? null;
+        if (!expBase) {
+          setExpedientes([]);
+          setTotal(0);
+          await Swal.fire({
+            title: "Sin resultados",
+            text: `No se encontró el expediente con código ${codigo.trim()}.`,
+            icon: "info",
+            confirmButtonText: "Ok",
+            confirmButtonColor: "#3b82f6",
+          });
+          return;
+        }
 
-      // Traer indicios por código (paginado 50)
-      const withIndicios: Expediente[] = await Promise.all(
-        base.map(async (exp) => {
-          const url = new URL(
-            `${API_BASE}/Expedientes/${encodeURIComponent(exp.codigo)}/Indicios`
-          );
-          url.searchParams.set("q", "");
-          url.searchParams.set("page", "1");
-          url.searchParams.set("pageSize", "50");
+        const indicios = await fetchIndiciosDe(expBase.codigo);
+        const base = toExpediente(expBase, indicios);
+        setExpedientes([base]);
+        setTotal(1);
+        setPage(1);
+      } else {
+        const url = new URL(`${API_BASE}${LIST_PATH}`);
+        url.searchParams.set("page", String(page));
+        url.searchParams.set("pageSize", String(PAGE_SIZE));
+        url.searchParams.set("_", String(Date.now()));
 
-          try {
-            const indRes = await fetch(url.toString(), { headers: authHeaders });
-            const j = await indRes.json();
-            const rows: Indicio[] = Array.isArray(j) ? j : j?.data ?? [];
-            return { ...exp, indicios: rows };
-          } catch {
-            return { ...exp, indicios: [] };
-          }
-        })
-      );
+        const expRes = await fetch(url.toString(), { headers: authHeaders });
+        if (!expRes.ok) throw new Error("No se pudo obtener expedientes");
 
-      setExpedientes(withIndicios);
-    } catch (e) {
+        const raw = await safeJson(expRes);
+        const rows: any[] = Array.isArray((raw as any)?.data)
+          ? (raw as any).data
+          : Array.isArray(raw)
+          ? (raw as any)
+          : [];
+        const totalServer = Number((raw as any)?.total ?? rows.length ?? 0);
+
+        const withIndicios: Expediente[] = await Promise.all(
+          rows.map(async (exp: any) => {
+            const indicios = await fetchIndiciosDe(exp.codigo);
+            return toExpediente(exp, indicios);
+          })
+        );
+
+        setExpedientes(withIndicios);
+        setTotal(totalServer);
+      }
+    } catch (e: any) {
       console.error(e);
       setExpedientes([]);
+      setTotal(0);
       await Swal.fire({
         title: "Error",
-        text: "No se pudieron cargar los expedientes.",
+        text: e?.message || "No se pudieron cargar los expedientes.",
         icon: "error",
         confirmButtonText: "Entendido",
         confirmButtonColor: "#ef4444",
@@ -124,6 +258,14 @@ const RevisarExpedientes = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
+  useEffect(() => {
+    if (!token) return;
+    if (!codigoQuery.trim()) {
+      fetchExpedientes();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
+
   const EstadoChip = ({ value }: { value: Estado }) => {
     const map = {
       aprobado: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -137,7 +279,19 @@ const RevisarExpedientes = () => {
     );
   };
 
-  const aprobarExpediente = async (codigo: string) => {
+  /** ====== Acciones ====== */
+  const aprobarExpediente = async (codigo: string, activo?: boolean) => {
+    if (activo === false) {
+      await Swal.fire({
+        title: "Expediente inactivo",
+        text: "No puedes aprobar un expediente inactivo.",
+        icon: "info",
+        confirmButtonText: "Entendido",
+        confirmButtonColor: "#3b82f6",
+      });
+      return;
+    }
+
     if (!userId) {
       await Swal.fire({
         title: "Sesión requerida",
@@ -168,8 +322,8 @@ const RevisarExpedientes = () => {
       });
 
       if (!resp.ok) {
-        const j = await resp.json().catch(() => ({}));
-        throw new Error(j?.message || "No se pudo aprobar");
+        const j = await safeJson(resp);
+        throw new Error((j as any)?.message || "No se pudo aprobar.");
       }
 
       setExpedientes((prev) =>
@@ -177,10 +331,10 @@ const RevisarExpedientes = () => {
           e.codigo === codigo
             ? {
                 ...e,
-                estado: "aprobado",
+                estado: "aprobado" as const,
                 justificacion: "",
-                aprobador_id: Number(userId),
-                aprobador_username: userUsername,
+                aprobador_id: String(userId),
+                aprobador_nombre: userUsername ?? null,
                 fecha_estado: new Date().toISOString(),
               }
             : e
@@ -198,7 +352,7 @@ const RevisarExpedientes = () => {
       });
     } catch (error: any) {
       await Swal.fire({
-        title: "Error",
+        title: "No se pudo aprobar",
         text: error?.message || "Ocurrió un error al aprobar.",
         icon: "error",
         confirmButtonText: "Entendido",
@@ -207,7 +361,17 @@ const RevisarExpedientes = () => {
     }
   };
 
-  const prepararRechazo = (codigo: string) => {
+  const prepararRechazo = (codigo: string, activo?: boolean) => {
+    if (activo === false) {
+      Swal.fire({
+        title: "Expediente inactivo",
+        text: "No puedes rechazar un expediente inactivo.",
+        icon: "info",
+        confirmButtonText: "Entendido",
+        confirmButtonColor: "#3b82f6",
+      });
+      return;
+    }
     setExpedienteRechazando(codigo);
     setRechazoJustificacion("");
   };
@@ -245,8 +409,8 @@ const RevisarExpedientes = () => {
       });
 
       if (!resp.ok) {
-        const j = await resp.json().catch(() => ({}));
-        throw new Error(j?.message || "No se pudo rechazar");
+        const j = await safeJson(resp);
+        throw new Error((j as any)?.message || "No se pudo rechazar.");
       }
 
       setExpedientes((prev) =>
@@ -254,10 +418,10 @@ const RevisarExpedientes = () => {
           e.codigo === codigo
             ? {
                 ...e,
-                estado: "rechazado",
+                estado: "rechazado" as const,
                 justificacion: rechazoJustificacion,
-                aprobador_id: Number(userId),
-                aprobador_username: userUsername,
+                aprobador_id: String(userId),
+                aprobador_nombre: userUsername ?? null,
                 fecha_estado: new Date().toISOString(),
               }
             : e
@@ -275,7 +439,7 @@ const RevisarExpedientes = () => {
       });
     } catch (error: any) {
       await Swal.fire({
-        title: "Error",
+        title: "No se pudo rechazar",
         text: error?.message || "Ocurrió un error al rechazar.",
         icon: "error",
         confirmButtonText: "Entendido",
@@ -287,6 +451,7 @@ const RevisarExpedientes = () => {
     }
   };
 
+  /** ====== Render ====== */
   if (loading) {
     return (
       <div className="min-h-[40vh] grid place-items-center">
@@ -303,22 +468,80 @@ const RevisarExpedientes = () => {
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden mb-6">
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-8 text-white flex items-center justify-between">
-            <h2 className="text-3xl font-bold flex items-center gap-3">
-              <ClipboardDocumentListIcon className="h-8 w-8" />
-              Revisión de Expedientes
-            </h2>
-            <button
-              onClick={() => {
-                setRefreshing(true);
-                fetchExpedientes();
-              }}
-              className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl border border-white/20 transition flex items-center gap-2"
-              title="Actualizar"
-            >
-              <ArrowPathIcon className={`h-5 w-5 ${refreshing ? "animate-spin" : ""}`} />
-              Actualizar
-            </button>
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-8 text-white">
+            <div className="flex flex-col gap-5">
+              <div className="flex items-center justify-between gap-4">
+                <h2 className="text-3xl font-bold flex items-center gap-3">
+                  <ClipboardDocumentListIcon className="h-8 w-8" />
+                  Revisión de Expedientes
+                </h2>
+                <button
+                  onClick={() => {
+                    setRefreshing(true);
+                    fetchExpedientes(codigoQuery.trim() || undefined);
+                  }}
+                  className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl border border-white/20 transition flex items-center gap-2"
+                  title="Actualizar"
+                >
+                  <ArrowPathIcon className={`h-5 w-5 ${refreshing ? "animate-spin" : ""}`} />
+                  Actualizar
+                </button>
+              </div>
+
+              {/* 🔎 Buscador por código */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <MagnifyingGlassIcon className="h-5 w-5 text-white/80" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Buscar por CÓDIGO de expediente… (Ej: EXP-2025-001)"
+                    value={codigoQuery}
+                    onChange={(e) => setCodigoQuery(e.target.value.toUpperCase())}
+                    className="w-full pl-10 pr-10 py-3 rounded-xl bg-white/15 border border-white/20 text-white placeholder:text-white/70 focus:outline-none focus:ring-2 focus:ring-white/50"
+                  />
+                  {codigoQuery && (
+                    <button
+                      onClick={() => setCodigoQuery("")}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-white/80 hover:text-white"
+                      aria-label="Limpiar búsqueda"
+                    >
+                      <XMarkIcon className="h-5 w-5" />
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setPage(1);
+                      fetchExpedientes(codigoQuery.trim() || undefined);
+                    }}
+                    className="px-5 py-3 rounded-xl bg-white text-blue-700 font-semibold shadow hover:shadow-md transition"
+                  >
+                    Buscar
+                  </button>
+                  <button
+                    onClick={() => {
+                      setCodigoQuery("");
+                      setPage(1);
+                      fetchExpedientes();
+                    }}
+                    className="px-5 py-3 rounded-xl bg-white/10 border border-white/20 text-white font-semibold hover:bg-white/20 transition"
+                  >
+                    Mostrar todos
+                  </button>
+                </div>
+              </div>
+
+              {!codigoQuery.trim() && (
+                <div className="text-sm text-white/90">
+                  Mostrando <span className="font-semibold">{from}</span> –{" "}
+                  <span className="font-semibold">{to}</span> de{" "}
+                  <span className="font-semibold">{total}</span> expedientes
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Lista */}
@@ -332,11 +555,18 @@ const RevisarExpedientes = () => {
               expedientes.map((expediente) => (
                 <div
                   key={expediente.codigo}
-                  className="relative p-5 border border-gray-200 rounded-2xl bg-white shadow-sm hover:shadow-md transition"
+                  className={`relative p-5 border border-gray-200 rounded-2xl bg-white shadow-sm hover:shadow-md transition ${
+                    expediente.activo === false ? "opacity-80" : ""
+                  }`}
                 >
                   {/* Estado a la derecha */}
                   <div className="absolute top-5 right-5 flex items-center gap-3">
                     <EstadoChip value={expediente.estado} />
+                    {expediente.activo === false && (
+                      <span className="text-xs px-2.5 py-1 rounded-full border bg-gray-100 text-gray-700 border-gray-200">
+                        INACTIVO
+                      </span>
+                    )}
                   </div>
 
                   <h3 className="text-xl font-semibold text-gray-800">
@@ -344,16 +574,18 @@ const RevisarExpedientes = () => {
                   </h3>
                   <div className="mt-1 text-sm text-gray-600">
                     <p>Fecha de registro: {formatDate(expediente.fecha_registro)}</p>
-                    <p>Técnico: {expediente.tecnico_username}</p>
+                    <p>Técnico: {expediente.tecnico_nombre}</p>
                     {expediente.descripcion && <p>Descripción: {expediente.descripcion}</p>}
-                    {expediente.aprobador_username && <p>Aprobador: {expediente.aprobador_username}</p>}
-                    {expediente.fecha_estado && <p>Fecha cambio estado: {formatDate(expediente.fecha_estado)}</p>}
+                    {expediente.aprobador_nombre && <p>Aprobador: {expediente.aprobador_nombre}</p>}
+                    {expediente.fecha_estado && (
+                      <p>Fecha cambio estado: {formatDate(expediente.fecha_estado)}</p>
+                    )}
                   </div>
 
-                  {/* Justificación si fue rechazado */}
                   {expediente.estado === "rechazado" && expediente.justificacion && (
                     <div className="mt-3 text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-3">
-                      <span className="font-semibold">Justificación:</span> {expediente.justificacion}
+                      <span className="font-semibold">Justificación:</span>{" "}
+                      {expediente.justificacion}
                     </div>
                   )}
 
@@ -380,10 +612,10 @@ const RevisarExpedientes = () => {
                   {/* Acciones */}
                   <div className="mt-5 flex flex-wrap gap-3">
                     <button
-                      onClick={() => aprobarExpediente(expediente.codigo)}
-                      disabled={expediente.estado === "aprobado"}
+                      onClick={() => aprobarExpediente(expediente.codigo, expediente.activo)}
+                      disabled={expediente.estado === "aprobado" || expediente.activo === false}
                       className={`inline-flex items-center gap-2 px-5 py-2 rounded-xl font-semibold transition ${
-                        expediente.estado === "aprobado"
+                        expediente.estado === "aprobado" || expediente.activo === false
                           ? "bg-emerald-100 text-emerald-500 cursor-not-allowed"
                           : "bg-emerald-600 hover:bg-emerald-700 text-white shadow"
                       }`}
@@ -393,10 +625,10 @@ const RevisarExpedientes = () => {
                     </button>
 
                     <button
-                      onClick={() => prepararRechazo(expediente.codigo)}
-                      disabled={expediente.estado === "rechazado"}
+                      onClick={() => prepararRechazo(expediente.codigo, expediente.activo)}
+                      disabled={expediente.estado === "rechazado" || expediente.activo === false}
                       className={`inline-flex items-center gap-2 px-5 py-2 rounded-xl font-semibold transition ${
-                        expediente.estado === "rechazado"
+                        expediente.estado === "rechazado" || expediente.activo === false
                           ? "bg-rose-100 text-rose-500 cursor-not-allowed"
                           : "bg-rose-600 hover:bg-rose-700 text-white shadow"
                       }`}
@@ -409,6 +641,55 @@ const RevisarExpedientes = () => {
               ))
             )}
           </div>
+
+          {/* Paginación (solo cuando NO hay búsqueda por código) */}
+          {!codigoQuery.trim() && total > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 pb-6">
+              <div className="text-sm text-gray-600">
+                Página <span className="font-semibold">{page}</span> de{" "}
+                <span className="font-semibold">{totalPages}</span>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Anterior
+                </button>
+
+                {Array.from({ length: totalPages })
+                  .slice(Math.max(0, page - 3), Math.max(0, page - 3) + Math.min(5, totalPages))
+                  .map((_, idx) => {
+                    const pageNum = Math.max(1, page - 2) + idx;
+                    if (pageNum > totalPages) return null;
+                    const active = pageNum === page;
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setPage(pageNum)}
+                        className={`px-3 py-2 rounded-lg border ${
+                          active
+                            ? "bg-blue-600 border-blue-600 text-white"
+                            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+
+                <button
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Siguiente
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

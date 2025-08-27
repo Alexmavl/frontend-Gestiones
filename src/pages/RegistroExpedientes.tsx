@@ -18,14 +18,20 @@ import "sweetalert2/dist/sweetalert2.min.css";
 type Estado = "pendiente" | "aprobado" | "rechazado";
 
 interface Expediente {
-  id: number;
+  id: string;
   codigo: string;
   descripcion: string;
   fecha_registro: string | null;
-  tecnico_id: number;
+
+  tecnico_id: string;
+  tecnico_nombre?: string | null;     // 👈 agregado
+
   justificacion?: string | null;
   estado: Estado;
-  aprobador_id?: number | null;
+
+  aprobador_id?: string | null;
+  aprobador_nombre?: string | null;   // 👈 agregado
+
   fecha_estado?: string | null;
   activo: boolean;
 }
@@ -33,7 +39,7 @@ interface Expediente {
 const API = "http://localhost:3000";
 const LIST_PATH = "/Expedientes";   // GET listar/buscar (E mayúscula)
 const BY_CODE_PATH = "/expedientes"; // POST/PUT/PATCH (minúscula)
-const PAGE_SIZE = 10;                // 10 por página, como pediste
+const PAGE_SIZE = 10;
 
 // ====== Helper seguro para parsear respuestas ======
 async function safeJson(resp: Response) {
@@ -113,15 +119,34 @@ const RegistroExpediente = () => {
   // toggling activo loading por código
   const [toggling, setToggling] = useState<Record<string, boolean>>({});
 
+  // ====== Normalizador con fallbacks de llaves ======
   const normalizeExp = (r: any): Expediente => ({
-    id: Number(r.id),
+    id: String(r.id),
     codigo: String(r.codigo ?? ""),
     descripcion: String(r.descripcion ?? ""),
-    fecha_registro: r.fecha_registro ?? null,
-    tecnico_id: Number(r.tecnico_id ?? 0),
+    fecha_registro: r.fecha_registro ?? r.creado_en ?? null,
+
+    tecnico_id: r.tecnico_id != null ? String(r.tecnico_id) : "",
+    aprobador_id: r.aprobador_id != null ? String(r.aprobador_id) : null,
+
+    tecnico_nombre:
+      r.tecnico_nombre ??
+      r.tecnico_username ??     // si el SP lo expuso así
+      r.nombre_tecnico ??
+      r.tecnico?.nombre ??
+      r.tecnico?.username ??
+      null,
+
+    aprobador_nombre:
+      r.aprobador_nombre ??
+      r.aprobador_username ??   // si el SP lo expuso así
+      r.nombre_aprobador ??
+      r.aprobador?.nombre ??
+      r.aprobador?.username ??
+      null,
+
     justificacion: r.justificacion ?? null,
     estado: (r.estado ?? "pendiente") as Estado,
-    aprobador_id: r.aprobador_id ?? null,
     fecha_estado: r.fecha_estado ?? null,
     activo: r.activo === true || r.activo === 1 || r.activo === "1",
   });
@@ -151,6 +176,9 @@ const RegistroExpediente = () => {
         : Array.isArray(json)
         ? json
         : [];
+
+      // console.log("Muestra filas:", serverRows?.[0]); // útil si aún no sale
+
       setRows(serverRows.map(normalizeExp));
       setTotal(Number(json?.total ?? serverRows.length ?? 0));
     } catch (e) {
@@ -394,6 +422,14 @@ const RegistroExpediente = () => {
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Descripción
                     </th>
+                    {/* 👇 NUEVO: Técnico */}
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      Técnico
+                    </th>
+                    {/* 👇 NUEVO: Aprobador */}
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      Aprobador
+                    </th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Estado
                     </th>
@@ -417,6 +453,7 @@ const RegistroExpediente = () => {
                           <span className="font-semibold text-gray-900">{exp.codigo}</span>
                         </div>
                       </td>
+
                       <td className="px-6 py-4">
                         <div className="max-w-xs">
                           <p className="text-gray-900 truncate" title={exp.descripcion}>
@@ -424,9 +461,25 @@ const RegistroExpediente = () => {
                           </p>
                         </div>
                       </td>
+
+                      {/* 👇 Técnico */}
+                      <td className="px-6 py-4">
+                        <span title={exp.tecnico_nombre ?? ""}>
+                          {exp.tecnico_nombre || "—"}
+                        </span>
+                      </td>
+
+                      {/* 👇 Aprobador */}
+                      <td className="px-6 py-4">
+                        <span title={exp.aprobador_nombre ?? ""}>
+                          {exp.aprobador_nombre || "—"}
+                        </span>
+                      </td>
+
                       <td className="px-6 py-4 whitespace-nowrap">
                         <EstadoBadge estado={exp.estado} />
                       </td>
+
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <div className="flex items-center justify-center gap-2">
                           <Toggle
@@ -440,6 +493,7 @@ const RegistroExpediente = () => {
                           )}
                         </div>
                       </td>
+
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <div className="flex items-center justify-center gap-2">
                           <button
@@ -479,28 +533,28 @@ const RegistroExpediente = () => {
                   Anterior
                 </button>
 
-                {/* Números de página (simple, con ventana) */}
-                {Array.from({ length: totalPages }).slice(
-                  Math.max(0, page - 3),
-                  Math.max(0, page - 3) + Math.min(5, totalPages)
-                ).map((_, idx) => {
-                  const pageNum = Math.max(1, page - 2) + idx;
-                  if (pageNum > totalPages) return null;
-                  const active = pageNum === page;
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setPage(pageNum)}
-                      className={`px-3 py-2 rounded-lg border ${
-                        active
-                          ? "bg-blue-600 border-blue-600 text-white"
-                          : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
+                {/* Números de página (ventana) */}
+                {Array.from({ length: totalPages })
+                  .slice(Math.max(0, page - 3), Math.max(0, page - 3) + Math.min(5, totalPages))
+                  .map((_, idx) => {
+                    const start = Math.max(1, page - 2);
+                    const pageNum = start + idx;
+                    if (pageNum > totalPages) return null;
+                    const active = pageNum === page;
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setPage(pageNum)}
+                        className={`px-3 py-2 rounded-lg border ${
+                          active
+                            ? "bg-blue-600 border-blue-600 text-white"
+                            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
 
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
@@ -517,7 +571,7 @@ const RegistroExpediente = () => {
         {/* Modal edición (overlay transparente para ver el sistema) */}
         {modalOpen && editing && (
           <div
-           className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4"
             onClick={closeModal}
           >
             <div
@@ -563,6 +617,28 @@ const RegistroExpediente = () => {
                       required
                       placeholder="Describe detalladamente el expediente..."
                     />
+                  </div>
+
+                  {/* 👇 Solo lectura: técnico y aprobador */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Técnico</label>
+                      <input
+                        type="text"
+                        value={editing?.tecnico_nombre || ""}
+                        disabled
+                        className="w-full px-4 py-2 border border-gray-200 rounded-xl bg-gray-50 text-gray-700"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Aprobador</label>
+                      <input
+                        type="text"
+                        value={editing?.aprobador_nombre || ""}
+                        disabled
+                        className="w-full px-4 py-2 border border-gray-200 rounded-xl bg-gray-50 text-gray-700"
+                      />
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-100">
