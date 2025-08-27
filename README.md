@@ -1,69 +1,76 @@
-# React + TypeScript + Vite
+# 📂 Sistema de Gestión de Expedientes (Frontend)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Este es el **frontend** del sistema de gestión de expedientes, desarrollado con **React + TypeScript + Tailwind CSS**.  
+Se conecta con el backend disponible en el repositorio [`project-root`](https://github.com/Alexmavl/project-root).
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🚀 Tecnologías utilizadas
 
-## Expanding the ESLint configuration
+- ⚛️ **React** (Vite + TypeScript)
+- 🎨 **Tailwind CSS**
+- 🛠 **Heroicons** (para iconografía)
+- 🔒 **Auth Context + Hooks personalizados**
+- 🍬 **SweetAlert2** (para alertas amigables)
+- 🔗 Conexión a **API REST (Node.js + SQL Server)** del repo [`project-root`](https://github.com/Alexmavl/project-root)
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+---
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## 📦 Requisitos previos
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
+Antes de empezar asegúrate de tener instalado:
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+- [Node.js](https://nodejs.org/) (versión 18 o superior recomendada)
+- [npm](https://www.npmjs.com/) 
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## ⚙️ Instalación y configuración
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+1. **Clona este repositorio**
+   ```bash
+   git clone https://github.com/usuario/frontend-expedientes.git
+   cd frontend-expedientes
+   ```
+
+2. **Instala las dependencias**
+   ```bash
+   npm install
+   ```
+
+3. **Configura las variables de entorno**
+   Crea un archivo `.env` en la raíz del proyecto y define la URL de la API:
+   ```env
+   VITE_API_URL=http://localhost:3000
+   ```
+
+4. **Ejecuta en modo desarrollo**
+   ```bash
+   npm run dev
+   ```
+
+5. **Build para producción**
+   ```bash
+   npm run build
+   ```
+
+---
+
+## 🔗 Relación con el backend
+
+Este frontend **depende del repositorio API** [`project-root`](https://github.com/Alexmavl/project-root.git), el cual expone los endpoints que consume la aplicación.
+
+Para que funcione correctamente:
+
+1. Inicia primero el servidor de la API (`project-root`) en `http://localhost:3000`.
+2. Luego arranca el frontend.
+3. Ambos proyectos deben ejecutarse en paralelo.
+
+---
+
+
+---
+
+## 📄 Licencia
+
+Este proyecto fue desarrollado por mvasquez.
