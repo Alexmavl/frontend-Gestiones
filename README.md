@@ -71,6 +71,60 @@ Para que funcione correctamente:
 
 ---
 
-## 📄 Licencia
+## 📄 Imagenes
+
+## Inicio de Sesión
+![alt text](/public/Imagen/Login.png)
 
 Este proyecto fue desarrollado por mvasquez.
+
+## Inicio Para técnico
+
+![alt text](/public/Imagen/InicioTecnico.png)
+## Listado de Expedientes 
+Contiene boton de agregar nuevo expediente, funcionalidad de activar y editar.
+![alt text](/public/Imagen/ListaExpedienteTecnico.png)
+
+## Modulo para crear expediente
+![alt text](/public/Imagen/CrearExpediente.png)
+
+## Alert para desactivar expediente 
+
+![alt text](/public/Imagen/ActivoExpediente.png)
+
+## Modal para Editar
+![alt text](/public/Imagen/EditarExpediente.png)
+
+## Busqueda de indicios por expediente
+
+![alt text](/public/Imagen/ListadoIndicio.png)
+
+## Activar y Desactivar indicios
+
+![alt text](/public/Imagen/ActivarIndicio.png)
+
+## Editar Indicio
+
+![alt text](/public/Imagen/EditarIndicio.png)
+
+## Crear Indicio
+![alt text](/public/Imagen/CrearIndicio.png)
+
+## Inicio para Coordinador 
+![alt text](/public/Imagen/InicioCo.png)
+
+## Listado de Expediente para Aprobar y Rechazar
+
+![alt text](/public/Imagen/Aprobar.png)
+
+## Alerta para aprobar Expediente
+
+![alt text](/public/Imagen/AprobarExpediente.png)
+
+## Alerta para Rechazar con su justificación
+
+![alt text](/public/Imagen/RechazarExpediente.png)
+
+## Listado de Usuarios
+
+![alt text](/public/Imagen/Usuarios.png)
