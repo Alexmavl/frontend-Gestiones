@@ -4,4 +4,5 @@ import tailwindcss from '@tailwindcss/vite'
 // hnttps://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  base: '/gestiones/'
 })
