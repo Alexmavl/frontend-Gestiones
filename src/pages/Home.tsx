@@ -9,7 +9,7 @@ const Home = () => (
         Tarea de Desarrollo web Utilizando React, TypeScript y Tailwind CSS
       </p>
 <img
-  src="/Imagen/LogotipoUMG.png"                  // <-- pon tu imagen en /public/hero.png
+  src={`${import.meta.env.BASE_URL}Imagen/LogotipoUMG.png`}
   alt="Panel principal del Sistema Gestiones"
   className="mx-auto mt-8 w-full max-w-[150px] rounded-xl shadow-lg object-cover"
   loading="lazy"

@@ -39,45 +39,68 @@ const AuthProvider = ({ children }: Props) => {
     localStorage.removeItem('id');
   };
 
-  const login = async (email: string, password: string): Promise<void> => {
-    try {
-       const resp = await fetch(apiUrl('/auth/login'), { //aca va la direccion del api
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
+const login = async (email: string, password: string): Promise<void> => {
+  const url = apiUrl('/auth/login'); // en PROD => /api/auth/login; en DEV => http://localhost:3001/auth/login
+  console.log('POST', url);
 
-      const data: Partial<LoginResponse> & { message?: string } =
-        await resp.json().catch(() => ({} as any));
+  // Timeout defensivo (10s)
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10000);
 
-      if (!resp.ok) {
-        // Propaga mensaje del backend (404, 401, 500, etc.)
-        throw new Error(data?.message ?? 'Error al iniciar sesión');
-      }
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+      signal: ctrl.signal,
+      // Si usas cookies/sesiones en el backend, descomenta:
+      // credentials: 'include',
+    }).catch((e) => {
+      console.error('Network/CORS error calling', url, e);
+      throw new Error('Failed to fetch: no se pudo contactar al servidor (red/CORS).');
+    });
 
-      if (!data?.token || !data?.usuario) {
-        throw new Error('Respuesta inválida del servidor (faltan token o usuario).');
-      }
+    clearTimeout(timer);
 
-      const u = data.usuario;
-      const rolOk = asRol(u.rol);
+    // Lee texto crudo y luego intenta JSON (para ver mensajes de error del backend)
+    const raw = await resp.text();
+    let data: Partial<LoginResponse> & { message?: string } = {};
+    try { data = raw ? JSON.parse(raw) : {}; } catch { /* respuesta no-JSON */ }
 
-      // Estado
-      setToken(data.token);
-      setRol(rolOk);
-      setUsername(u.nombre ?? null);
-      setId(String(u.id));
-
-      // Storage
-      localStorage.setItem('token', data.token);
-      rolOk ? localStorage.setItem('rol', rolOk) : localStorage.removeItem('rol');
-      u.nombre ? localStorage.setItem('username', u.nombre) : localStorage.removeItem('username');
-      localStorage.setItem('id', String(u.id));
-    } catch (err) {
-      clearAll();
-      throw err;
+    if (!resp.ok) {
+      console.error('HTTP error', resp.status, raw);
+      throw new Error(data?.message ?? `Error ${resp.status} al iniciar sesión`);
     }
-  };
+
+    if (!data?.token || !data?.usuario) {
+      console.error('Respuesta inesperada', data);
+      throw new Error('Respuesta inválida del servidor (faltan token o usuario).');
+    }
+
+    const u = data.usuario;
+    const rolOk = asRol(u.rol);
+
+    // Estado
+    setToken(data.token);
+    setRol(rolOk);
+    setUsername(u.nombre ?? null);
+    setId(String(u.id));
+
+    // Storage
+    localStorage.setItem('token', data.token);
+    rolOk ? localStorage.setItem('rol', rolOk) : localStorage.removeItem('rol');
+    u.nombre ? localStorage.setItem('username', u.nombre) : localStorage.removeItem('username');
+    localStorage.setItem('id', String(u.id));
+  } catch (err) {
+    clearAll();
+    throw err instanceof Error ? err : new Error('Error desconocido al iniciar sesión');
+  } finally {
+    clearTimeout(timer);
+  }
+};
 
   const logout = (): void => {
     clearAll();
