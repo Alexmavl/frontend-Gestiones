@@ -14,6 +14,7 @@ import {
 } from "@heroicons/react/24/solid";
 import Swal from "sweetalert2";
 import "sweetalert2/dist/sweetalert2.min.css";
+import { apiUrl } from '../config/env';
 
 type Estado = "pendiente" | "aprobado" | "rechazado";
 
@@ -36,7 +37,7 @@ interface Expediente {
   activo: boolean;
 }
 
-const API = "http://localhost:3000";
+
 const LIST_PATH = "/Expedientes";   // GET listar/buscar (E mayúscula)
 const BY_CODE_PATH = "/expedientes"; // POST/PUT/PATCH (minúscula)
 const PAGE_SIZE = 10;
@@ -155,7 +156,7 @@ const RegistroExpediente = () => {
     if (!token) return;
     setLoading(true);
     try {
-      const url = new URL(`${API}${LIST_PATH}`);
+      const url = new URL(`${apiUrl}${LIST_PATH}`);
       url.searchParams.set("page", String(page));
       url.searchParams.set("pageSize", String(PAGE_SIZE));
       if (searchTerm.trim()) url.searchParams.set("q", searchTerm.trim());
@@ -219,7 +220,7 @@ const RegistroExpediente = () => {
     e.preventDefault();
     if (!token || !editing || !codigoLookup) return;
     try {
-      const resp = await fetch(`${API}${BY_CODE_PATH}/${encodeURIComponent(codigoLookup)}`, {
+      const resp = await fetch(`${apiUrl}${BY_CODE_PATH}/${encodeURIComponent(codigoLookup)}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -275,7 +276,7 @@ const RegistroExpediente = () => {
 
       setToggling((p) => ({ ...p, [exp.codigo]: true }));
 
-      const resp = await fetch(`${API}${BY_CODE_PATH}/${encodeURIComponent(exp.codigo)}/activo`, {
+      const resp = await fetch(`${apiUrl}${BY_CODE_PATH}/${encodeURIComponent(exp.codigo)}/activo`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

@@ -10,6 +10,7 @@ import {
 } from "@heroicons/react/24/solid";
 import Swal from "sweetalert2";
 import "sweetalert2/dist/sweetalert2.min.css";
+import { apiUrl } from '../config/env';
 
 interface Indicio {
   id?: string;
@@ -25,7 +26,7 @@ interface Indicio {
   estado?: "pendiente" | "aprobado" | "rechazado";
 }
 
-const API = "http://localhost:3000";
+
 const PAGE_SIZE = 10;
 
 // ========= util =========
@@ -268,7 +269,7 @@ const RegistroIndicio = () => {
     setLoading(true);
     try {
       const url = new URL(
-        `${API}/Expedientes/${encodeURIComponent(codigoExpediente)}/Indicios`
+        `${apiUrl}/Expedientes/${encodeURIComponent(codigoExpediente)}/Indicios`
       );
       url.searchParams.set("page", String(page));
       url.searchParams.set("pageSize", String(PAGE_SIZE));
@@ -370,7 +371,7 @@ const RegistroIndicio = () => {
 
     try {
       const resp = await fetch(
-        `${API}/Expedientes/${encodeURIComponent(
+        `${apiUrl}/Expedientes/${encodeURIComponent(
           codigoExpediente
         )}/Indicios/${encodeURIComponent(codigoLookup)}`,
         {
@@ -436,7 +437,7 @@ const RegistroIndicio = () => {
       setToggling((p) => ({ ...p, [ind.codigo]: true }));
 
       const response = await fetch(
-        `${API}/Expedientes/${encodeURIComponent(
+        `${apiUrl}/Expedientes/${encodeURIComponent(
           codigoExpediente
         )}/Indicios/${encodeURIComponent(ind.codigo)}/activo`,
         {

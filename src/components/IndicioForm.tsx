@@ -2,6 +2,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import useAuth from "../auth/useAuth";
+import { apiUrl } from "../config/env"; // ruta desde /src/components
+
 import {
   ArrowLeftIcon,
   ClipboardDocumentListIcon,
@@ -38,7 +40,7 @@ type ExpedienteResumen = {
   fecha_registro?: string | null;
 };
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+
 
 const IndicioForm = () => {
   const { token, username } = useAuth();
@@ -124,7 +126,7 @@ const IndicioForm = () => {
     }
 
     try {
-      const resp = await fetch(`${API_BASE}/expedientes/${encodeURIComponent(codigo)}`, {
+      const resp = await fetch(apiUrl(`/expedientes/${encodeURIComponent(codigo)}`), {
         headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
       });
       const data = await safeParse(resp);
@@ -267,7 +269,7 @@ const IndicioForm = () => {
       };
 
       const resp = await fetch(
-        `${API_BASE}/expedientes/${encodeURIComponent(indicio.expedienteCodigo.trim())}/indicios`,
+        apiUrl(`/expedientes/${encodeURIComponent(indicio.expedienteCodigo.trim())}/indicios`),
         {
           method: "POST",
           headers: {

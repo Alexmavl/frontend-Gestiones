@@ -8,6 +8,7 @@ import {
   MagnifyingGlassIcon,
 } from "@heroicons/react/24/solid";
 
+
 type Estado = "Aprobado" | "Rechazado" | "Pendiente";
 
 interface Expediente {

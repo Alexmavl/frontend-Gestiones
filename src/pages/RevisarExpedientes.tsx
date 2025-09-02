@@ -11,6 +11,7 @@ import {
   MagnifyingGlassIcon,
   XMarkIcon,
 } from "@heroicons/react/24/solid";
+import { apiUrl } from '../config/env';
 
 interface Indicio {
   id: string;
@@ -40,7 +41,7 @@ interface Expediente {
   indicios: Indicio[];
 }
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+
 const LIST_PATH = "/expedientes";
 const PAGE_SIZE = 10;
 
@@ -147,7 +148,7 @@ const RevisarExpedientes = () => {
 
   // Cargar indicios por código (paginado 50) — tu ruta con "E" mayúscula
   const fetchIndiciosDe = async (codigo: string) => {
-    const url = new URL(`${API_BASE}/Expedientes/${encodeURIComponent(codigo)}/Indicios`);
+    const url = new URL(`${apiUrl}/Expedientes/${encodeURIComponent(codigo)}/Indicios`);
     url.searchParams.set("q", "");
     url.searchParams.set("page", "1");
     url.searchParams.set("pageSize", "50");
@@ -167,7 +168,7 @@ const RevisarExpedientes = () => {
     setLoading(true);
     try {
       if (codigo && codigo.trim()) {
-        const res = await fetch(`${API_BASE}/expedientes/${encodeURIComponent(codigo.trim())}`, {
+        const res = await fetch(`${apiUrl}/expedientes/${encodeURIComponent(codigo.trim())}`, {
           headers: authHeaders,
         });
         if (res.status === 404) {
@@ -209,7 +210,7 @@ const RevisarExpedientes = () => {
         setTotal(1);
         setPage(1);
       } else {
-        const url = new URL(`${API_BASE}${LIST_PATH}`);
+        const url = new URL(`${apiUrl}${LIST_PATH}`);
         url.searchParams.set("page", String(page));
         url.searchParams.set("pageSize", String(PAGE_SIZE));
         url.searchParams.set("_", String(Date.now()));
@@ -315,7 +316,7 @@ const RevisarExpedientes = () => {
     if (!confirm.isConfirmed) return;
 
     try {
-      const resp = await fetch(`${API_BASE}/expedientes/${encodeURIComponent(codigo)}/estado`, {
+      const resp = await fetch(`${apiUrl}/expedientes/${encodeURIComponent(codigo)}/estado`, {
         method: "PATCH",
         headers: authHeaders,
         body: JSON.stringify({ estado: "aprobado", justificacion: "" }),
@@ -402,7 +403,7 @@ const RevisarExpedientes = () => {
     }
 
     try {
-      const resp = await fetch(`${API_BASE}/expedientes/${encodeURIComponent(codigo)}/estado`, {
+      const resp = await fetch(`${apiUrl}/expedientes/${encodeURIComponent(codigo)}/estado`, {
         method: "PATCH",
         headers: authHeaders,
         body: JSON.stringify({ estado: "rechazado", justificacion: rechazoJustificacion }),

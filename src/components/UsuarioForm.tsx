@@ -2,6 +2,8 @@
 import { useState, useEffect, useRef, type FormEvent, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import useAuth from "../auth/useAuth";
+import { apiUrl } from "../config/env"; // ruta desde /src/components
+
 import {
   ArrowLeftIcon,
   UserPlusIcon,
@@ -19,7 +21,7 @@ import Swal from "sweetalert2";
 
 type Feedback = { type: "success" | "error"; message: string } | null;
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+
 
 type Rol = "coordinador" | "tecnico" | "usuario";
 
@@ -111,7 +113,7 @@ const UsuarioForm = () => {
         password: form.password,
       };
 
-      const resp = await fetch(`${API_BASE}/usuarios`, {
+      const resp = await fetch(apiUrl(`/usuarios`), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -15,6 +15,7 @@ import {
 } from "@heroicons/react/24/solid";
 import Swal from "sweetalert2";
 import "sweetalert2/dist/sweetalert2.min.css";
+import { apiUrl } from '../config/env';
 
 type Rol = "coordinador" | "tecnico" | "usuario";
 interface Usuario {
@@ -27,7 +28,7 @@ interface Usuario {
   actualizado_en?: string | null;
 }
 
-const API = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+
 const LIST_PATH = "/usuarios"; // GET (listar/buscar)
 const BY_ID_PATH = "/usuarios"; // PUT/PATCH by :id
 const PAGE_SIZE = 10;
@@ -128,7 +129,7 @@ const RegistroUsuario = () => {
     if (!token) return;
     setLoading(true);
     try {
-      const url = new URL(`${API}${LIST_PATH}`);
+      const url = new URL(`${apiUrl}${LIST_PATH}`);
       url.searchParams.set("page", String(page));
       url.searchParams.set("pageSize", String(PAGE_SIZE));
       if (searchTerm.trim()) url.searchParams.set("q", searchTerm.trim());
@@ -199,7 +200,7 @@ const RegistroUsuario = () => {
     }
 
     try {
-      const resp = await fetch(`${API}${BY_ID_PATH}/${editing.id}`, {
+      const resp = await fetch(`${apiUrl}${BY_ID_PATH}/${editing.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -259,7 +260,7 @@ const RegistroUsuario = () => {
 
       setToggling((p) => ({ ...p, [u.id]: true }));
 
-      const resp = await fetch(`${API}${BY_ID_PATH}/${u.id}/activo`, {
+      const resp = await fetch(`${apiUrl}${BY_ID_PATH}/${u.id}/activo`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

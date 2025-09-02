@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import useAuth from "../auth/useAuth";
+import { apiUrl } from "../config/env"; // ruta desde /src/components
+
 import {
   ArrowLeftIcon,
   DocumentPlusIcon,
@@ -16,7 +18,7 @@ import Swal from "sweetalert2";
 
 type Feedback = { type: "success" | "error"; message: string } | null;
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+
 
 const ExpedienteForm = () => {
   const { token, username } = useAuth();
@@ -85,7 +87,7 @@ const ExpedienteForm = () => {
     try {
       const payload = { codigo, descripcion }; // tecnico_id lo toma el backend del token
 
-      const resp = await fetch(`${API_BASE}/expedientes`, {
+const resp = await fetch(apiUrl("/expedientes"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import AuthContext from './AuthContext';
 import type { Rol } from './AuthContext';
+import { apiUrl } from '../config/env';
 
 interface Props {
   children: React.ReactNode;
@@ -40,7 +41,7 @@ const AuthProvider = ({ children }: Props) => {
 
   const login = async (email: string, password: string): Promise<void> => {
     try {
-      const resp = await fetch('http://localhost:3000/auth/login', {
+       const resp = await fetch(apiUrl('/auth/login'), { //aca va la direccion del api
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ email, password }),
