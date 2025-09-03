@@ -1,3 +1,4 @@
+// src/pages/RegistroIndicio.tsx
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import useAuth from "../auth/useAuth";
@@ -10,11 +11,11 @@ import {
 } from "@heroicons/react/24/solid";
 import Swal from "sweetalert2";
 import "sweetalert2/dist/sweetalert2.min.css";
-import { apiUrl } from '../config/env';
+import { apiUrl } from "../config/env";
 
 interface Indicio {
   id?: string;
-  codigo: string; 
+  codigo: string;
   expediente_codigo: string;
   descripcion: string;
   color?: string | null;
@@ -26,7 +27,8 @@ interface Indicio {
   estado?: "pendiente" | "aprobado" | "rechazado";
 }
 
-
+const EXP_PATH = "/Expedientes"; // respeta la E mayúscula según tu API
+const IND_PATH = "/Indicios";    // respeta la I mayúscula según tu API
 const PAGE_SIZE = 10;
 
 // ========= util =========
@@ -64,16 +66,8 @@ const Toggle = ({
     onClick={onChange}
     disabled={disabled}
     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-300
-      ${
-        disabled
-          ? "opacity-50 cursor-not-allowed"
-          : "cursor-pointer hover:scale-105"
-      }
-      ${
-        checked
-          ? "bg-gradient-to-r from-green-400 to-green-600"
-          : "bg-gradient-to-r from-gray-200 to-gray-300"
-      }
+      ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:scale-105"}
+      ${checked ? "bg-gradient-to-r from-green-400 to-green-600" : "bg-gradient-to-r from-gray-200 to-gray-300"}
     `}
   >
     <span
@@ -93,11 +87,7 @@ const ActivoBadge = ({ activo }: { activo: boolean }) => (
         : "bg-gray-50 text-gray-600 border-gray-200"
     }`}
   >
-    <span
-      className={`h-2 w-2 rounded-full ${
-        activo ? "bg-green-500" : "bg-gray-400"
-      }`}
-    />
+    <span className={`h-2 w-2 rounded-full ${activo ? "bg-green-500" : "bg-gray-400"}`} />
     {activo ? "Activo" : "Inactivo"}
   </span>
 );
@@ -118,11 +108,10 @@ function EditModal({
 }) {
   if (!open || !indicio) return null;
   return (
-<div
-  className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-  onClick={onClose}
->
-        
+    <div
+      className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
       <div
         className="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform transition-all duration-300"
         onClick={(e) => e.stopPropagation()}
@@ -143,9 +132,7 @@ function EditModal({
               <input
                 type="text"
                 value={indicio.codigo}
-                onChange={(e) =>
-                  onChange({ codigo: e.target.value.toUpperCase() })
-                }
+                onChange={(e) => onChange({ codigo: e.target.value.toUpperCase() })}
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 uppercase"
                 required
               />
@@ -171,12 +158,12 @@ function EditModal({
                   Peso (kg)
                 </label>
                 <input
-                  type="text"
+                  type="number"
+                  step="any"
                   value={indicio.peso ?? ""}
                   onChange={(e) =>
                     onChange({
-                      peso:
-                        e.target.value === "" ? null : Number(e.target.value),
+                      peso: e.target.value === "" ? null : Number(e.target.value),
                     })
                   }
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
@@ -240,9 +227,7 @@ const RegistroIndicio = () => {
   const [loading, setLoading] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [activoFilter, setActivoFilter] = useState<
-    "todos" | "activo" | "inactivo"
-  >("todos");
+  const [activoFilter, setActivoFilter] = useState<"todos" | "activo" | "inactivo">("todos");
 
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -252,10 +237,7 @@ const RegistroIndicio = () => {
   const [codigoLookup, setCodigoLookup] = useState<string | null>(null);
   const [toggling, setToggling] = useState<Record<string, boolean>>({});
 
-  const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(total / PAGE_SIZE)),
-    [total]
-  );
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / PAGE_SIZE)), [total]);
   const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const to = total === 0 ? 0 : Math.min(page * PAGE_SIZE, total);
 
@@ -268,38 +250,37 @@ const RegistroIndicio = () => {
     }
     setLoading(true);
     try {
-      const url = new URL(
-        `${apiUrl}/Expedientes/${encodeURIComponent(codigoExpediente)}/Indicios`
-      );
-      url.searchParams.set("page", String(page));
-      url.searchParams.set("pageSize", String(PAGE_SIZE));
-      if (searchTerm.trim()) url.searchParams.set("q", searchTerm.trim());
-      if (activoFilter !== "todos")
-        url.searchParams.set(
-          "activo",
-          activoFilter === "activo" ? "true" : "false"
-        );
-      url.searchParams.set("_", String(Date.now()));
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("pageSize", String(PAGE_SIZE));
+      if (searchTerm.trim()) params.set("q", searchTerm.trim());
+      if (activoFilter !== "todos") {
+        params.set("activo", activoFilter === "activo" ? "true" : "false");
+      }
+      params.set("_", String(Date.now()));
 
-      const response = await fetch(url.toString(), {
+      const requestUrl = apiUrl(
+        `${EXP_PATH}/${encodeURIComponent(codigoExpediente)}${IND_PATH}?${params.toString()}`
+      );
+      // console.log("[Indicios][GET]", requestUrl);
+
+      const response = await fetch(requestUrl, {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: "application/json",
         },
       });
       const json: any = await safeJson(response);
-      if (!response.ok)
-        throw new Error(json?.message ?? "No se pudo listar indicios");
+      if (!response.ok) throw new Error(json?.message ?? "No se pudo listar indicios");
 
-      const rows: any[] = Array.isArray(json?.data)
-        ? json.data
-        : Array.isArray(json)
-        ? json
-        : [];
-      // ⚠️ Asegúrate que 'codigo' venga en el listado:
+      const rows: any[] =
+        Array.isArray(json?.data) ? json.data :
+        Array.isArray(json?.items) ? json.items :
+        Array.isArray(json) ? json : [];
+
       const mapped: Indicio[] = rows.map((r) => ({
         id: r.id,
-        codigo: String(r.codigo), // <-- requerido para PUT/PATCH por código
+        codigo: String(r.codigo ?? ""),
         expediente_codigo: String(r.expediente_codigo ?? codigoExpediente),
         descripcion: String(r.descripcion ?? ""),
         color: r.color ?? null,
@@ -312,7 +293,7 @@ const RegistroIndicio = () => {
       }));
 
       setIndicios(mapped);
-      setTotal(Number(json?.total ?? mapped.length ?? 0));
+      setTotal(Number(json?.total ?? json?.totalCount ?? mapped.length ?? 0));
     } catch (error) {
       console.error("Error al obtener indicios:", error);
       setIndicios([]);
@@ -322,7 +303,7 @@ const RegistroIndicio = () => {
     }
   }, [token, codigoExpediente, page, searchTerm, activoFilter]);
 
-  // Reinicia a página 1 si cambian filtros o búsqueda
+  // Reinicia a página 1 si cambian filtros o búsqueda o el expediente
   useEffect(() => {
     setPage(1);
   }, [searchTerm, activoFilter, codigoExpediente]);
@@ -357,10 +338,8 @@ const RegistroIndicio = () => {
       });
       return;
     }
-    if (
-      editingIndicio.peso !== null &&
-      Number.isNaN(Number(editingIndicio.peso))
-    ) {
+    // TS-safe: solo valida si es number y además NaN
+    if (typeof editingIndicio.peso === "number" && Number.isNaN(editingIndicio.peso)) {
       await Swal.fire({
         title: "Validación",
         text: "El peso debe ser un número válido.",
@@ -370,38 +349,44 @@ const RegistroIndicio = () => {
     }
 
     try {
-      const resp = await fetch(
-        `${apiUrl}/Expedientes/${encodeURIComponent(
-          codigoExpediente
-        )}/Indicios/${encodeURIComponent(codigoLookup)}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-          body: JSON.stringify({
-            codigo: editingIndicio.codigo.trim().toUpperCase(),
-            descripcion: editingIndicio.descripcion.trim(),
-            peso: editingIndicio.peso ?? 0,
-            color: editingIndicio.color || null,
-            tamano: editingIndicio.tamano || null,
-          }),
-        }
+      const url = apiUrl(
+        `${EXP_PATH}/${encodeURIComponent(codigoExpediente)}${IND_PATH}/${encodeURIComponent(codigoLookup)}`
       );
+
+      const payload = {
+        codigo: editingIndicio.codigo.trim().toUpperCase(),
+        descripcion: editingIndicio.descripcion.trim(),
+        // si es number válido lo mandamos; si es null/undefined/NaN, mandamos null
+        peso:
+          typeof editingIndicio.peso === "number" && !Number.isNaN(editingIndicio.peso)
+            ? editingIndicio.peso
+            : null,
+        color: editingIndicio.color?.trim() || null,
+        tamano: editingIndicio.tamano?.trim() || null,
+      };
+
+      const resp = await fetch(url, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
       const json = await safeJson(resp);
-      if (!resp.ok)
-        throw new Error(json?.message ?? "Error al guardar indicio");
+      if (!resp.ok) throw new Error(json?.message ?? "Error al guardar indicio");
 
       closeModal();
       await Swal.fire({
         title: "Cambios guardados",
-        text: `El indicio ${editingIndicio.codigo} fue actualizado correctamente.`,
+        text: `El indicio ${payload.codigo} fue actualizado correctamente.`,
         icon: "success",
         timer: 1500,
         showConfirmButton: false,
       });
+
       fetchIndicios();
     } catch (error: any) {
       console.error("Error al guardar indicio:", error);
@@ -436,29 +421,31 @@ const RegistroIndicio = () => {
 
       setToggling((p) => ({ ...p, [ind.codigo]: true }));
 
-      const response = await fetch(
-        `${apiUrl}/Expedientes/${encodeURIComponent(
-          codigoExpediente
-        )}/Indicios/${encodeURIComponent(ind.codigo)}/activo`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-          body: JSON.stringify({ activo: !ind.activo }),
-        }
+      const url = apiUrl(
+        `${EXP_PATH}/${encodeURIComponent(codigoExpediente)}${IND_PATH}/${encodeURIComponent(ind.codigo)}/activo`
       );
+
+      const response = await fetch(url, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ activo: !ind.activo }),
+      });
+
       const json = await safeJson(response);
-      if (!response.ok)
-        throw new Error(json?.message || "Error al cambiar estado de indicio");
+      if (!response.ok) throw new Error(json?.message || "Error al cambiar estado de indicio");
+
+      // Update optimista inmediato
+      setIndicios((prev) =>
+        prev.map((r) => (r.codigo === ind.codigo ? { ...r, activo: !r.activo } : r))
+      );
 
       await Swal.fire({
         title: ind.activo ? "Indicio desactivado" : "Indicio activado",
-        text: `El indicio ${ind.codigo} se ${
-          ind.activo ? "desactivó" : "activó"
-        } correctamente.`,
+        text: `El indicio ${ind.codigo} se ${ind.activo ? "desactivó" : "activó"} correctamente.`,
         icon: "success",
         timer: 1500,
         showConfirmButton: false,
@@ -469,9 +456,7 @@ const RegistroIndicio = () => {
       console.error("Error al cambiar estado de indicio:", error);
       await Swal.fire({
         title: "Error",
-        text:
-          error?.message ||
-          "Ocurrió un error al cambiar el estado del indicio.",
+        text: error?.message || "Ocurrió un error al cambiar el estado del indicio.",
         icon: "error",
       });
     } finally {
@@ -493,16 +478,14 @@ const RegistroIndicio = () => {
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
                   Gestión de Indicios
                 </h1>
-                <p className="text-gray-600 mt-1">
-                  Consulta y administra indicios por expediente
-                </p>
+                <p className="text-gray-600 mt-1">Consulta y administra indicios por expediente</p>
               </div>
             </div>
 
             <button
               onClick={() => navigate("/indicio-form")}
               className="px-6 py-3 rounded-xl font-semibold shadow-lg transition-all duration-200 flex items-center gap-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white hover:shadow-xl transform hover:scale-105"
-              title="Crear nuevo expediente"
+              title="Crear nuevo indicio"
             >
               <PlusIcon className="h-5 w-5" />
               Nuevo Indicio
@@ -520,9 +503,7 @@ const RegistroIndicio = () => {
                   type="text"
                   placeholder="Código de expediente (ej: EXP-004)"
                   value={codigoExpediente}
-                  onChange={(e) =>
-                    setCodigoExpediente(e.target.value.toUpperCase())
-                  }
+                  onChange={(e) => setCodigoExpediente(e.target.value.toUpperCase())}
                   className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 uppercase"
                 />
               </div>
@@ -543,9 +524,7 @@ const RegistroIndicio = () => {
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 mb-4">
           <div className="flex items-center gap-2 mb-4">
             <FunnelIcon className="h-5 w-5 text-gray-500" />
-            <h3 className="text-lg font-semibold text-gray-800">
-              Filtros de búsqueda
-            </h3>
+            <h3 className="text-lg font-semibold text-gray-800">Filtros de búsqueda</h3>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -566,11 +545,7 @@ const RegistroIndicio = () => {
             {/* Filtro activo */}
             <select
               value={activoFilter}
-              onChange={(e) =>
-                setActivoFilter(
-                  e.target.value as "todos" | "activo" | "inactivo"
-                )
-              }
+              onChange={(e) => setActivoFilter(e.target.value as "todos" | "activo" | "inactivo")}
               className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             >
               <option value="todos">Activos e inactivos</option>
@@ -602,8 +577,7 @@ const RegistroIndicio = () => {
           </div>
         ) : indicios.length === 0 ? (
           <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-16 text-center text-gray-600">
-            No se encontraron indicios para el expediente{" "}
-            <b>{codigoExpediente}</b>.
+            No se encontraron indicios para el expediente <b>{codigoExpediente}</b>.
           </div>
         ) : (
           <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
@@ -638,32 +612,19 @@ const RegistroIndicio = () => {
                   {indicios.map((ind) => (
                     <tr
                       key={ind.codigo}
-                      className={`transition-colors duration-200 hover:bg-blue-50 ${
-                        !ind.activo ? "opacity-60" : ""
-                      }`}
+                      className={`transition-colors duration-200 hover:bg-blue-50 ${!ind.activo ? "opacity-60" : ""}`}
                     >
-                      <td className="px-6 py-4 whitespace-nowrap font-semibold">
-                        {ind.codigo}
-                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap font-semibold">{ind.codigo}</td>
                       <td className="px-6 py-4">
                         <div className="max-w-xs">
-                          <p
-                            className="text-gray-900 truncate"
-                            title={ind.descripcion}
-                          >
+                          <p className="text-gray-900 truncate" title={ind.descripcion}>
                             {ind.descripcion}
                           </p>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {ind.peso ?? "-"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {ind.color ?? "-"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {ind.tamano ?? "-"}
-                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">{ind.peso ?? "-"}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">{ind.color ?? "-"}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">{ind.tamano ?? "-"}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <div className="flex items-center justify-center gap-2">
                           <ActivoBadge activo={ind.activo} />
@@ -688,11 +649,7 @@ const RegistroIndicio = () => {
                                 : "bg-gray-200 text-gray-400 cursor-not-allowed"
                             }`}
                             disabled={!ind.activo}
-                            title={
-                              ind.activo
-                                ? "Editar indicio"
-                                : "Debe estar activo para editar"
-                            }
+                            title={ind.activo ? "Editar indicio" : "Debe estar activo para editar"}
                           >
                             <PencilIcon className="h-4 w-4" />
                             Editar
@@ -722,10 +679,7 @@ const RegistroIndicio = () => {
                 </button>
 
                 {Array.from({ length: totalPages })
-                  .slice(
-                    Math.max(0, page - 3),
-                    Math.max(0, page - 3) + Math.min(5, totalPages)
-                  )
+                  .slice(Math.max(0, page - 3), Math.max(0, page - 3) + Math.min(5, totalPages))
                   .map((_, idx) => {
                     const start = Math.max(1, page - 2);
                     const pageNum = start + idx;
@@ -763,9 +717,7 @@ const RegistroIndicio = () => {
           open={modalOpen}
           onClose={closeModal}
           indicio={editingIndicio}
-          onChange={(next) =>
-            setEditingIndicio((prev) => (prev ? { ...prev, ...next } : prev))
-          }
+          onChange={(next) => setEditingIndicio((prev) => (prev ? { ...prev, ...next } : prev))}
           onSubmit={handleSave}
         />
       </div>

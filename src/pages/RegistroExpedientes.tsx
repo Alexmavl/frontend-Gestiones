@@ -153,43 +153,49 @@ const RegistroExpediente = () => {
   });
 
   const fetchExpedientes = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const url = new URL(`${apiUrl}${LIST_PATH}`);
-      url.searchParams.set("page", String(page));
-      url.searchParams.set("pageSize", String(PAGE_SIZE));
-      if (searchTerm.trim()) url.searchParams.set("q", searchTerm.trim());
-      if (estadoFilter !== "todos") url.searchParams.set("estado", estadoFilter);
-      if (activoFilter !== "todos") {
-        url.searchParams.set("activo", activoFilter === "activo" ? "true" : "false");
-      }
-      url.searchParams.set("_", String(Date.now())); // anti-cache
-
-      const resp = await fetch(url.toString(), {
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-      });
-      const json: any = await safeJson(resp);
-      if (!resp.ok) throw new Error(json?.message ?? "No se pudo listar");
-
-      const serverRows: any[] = Array.isArray(json?.data)
-        ? json.data
-        : Array.isArray(json)
-        ? json
-        : [];
-
-      // console.log("Muestra filas:", serverRows?.[0]); // útil si aún no sale
-
-      setRows(serverRows.map(normalizeExp));
-      setTotal(Number(json?.total ?? serverRows.length ?? 0));
-    } catch (e) {
-      console.error("Error al obtener expedientes:", e);
-      setRows([]);
-      setTotal(0);
-    } finally {
-      setLoading(false);
+  if (!token) return;
+  setLoading(true);
+  try {
+    const params = new URLSearchParams();
+    params.set("page", String(page));
+    params.set("pageSize", String(PAGE_SIZE));
+    if (searchTerm.trim()) params.set("q", searchTerm.trim());
+    if (estadoFilter !== "todos") params.set("estado", estadoFilter);
+    if (activoFilter !== "todos") {
+      params.set("activo", activoFilter === "activo" ? "true" : "false");
     }
-  }, [token, page, searchTerm, estadoFilter, activoFilter]);
+    params.set("_", String(Date.now()));
+
+    // Usa apiUrl como función, respeta la E mayúscula
+    const requestUrl = apiUrl(`${LIST_PATH}?${params.toString()}`);
+    console.log("[Expedientes] GET:", requestUrl);
+
+    const resp = await fetch(requestUrl, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+
+    const json: any = await safeJson(resp);
+    console.log("[Expedientes] status:", resp.status, "payload:", json);
+
+    if (!resp.ok) throw new Error(json?.message ?? "No se pudo listar");
+
+    const serverRows: any[] = Array.isArray(json?.data)
+      ? json.data
+      : Array.isArray(json)
+      ? json
+      : [];
+
+    setRows(serverRows.map(normalizeExp));
+    setTotal(Number(json?.total ?? serverRows.length ?? 0));
+  } catch (e) {
+    console.error("Error al obtener expedientes:", e);
+    setRows([]);
+    setTotal(0);
+  } finally {
+    setLoading(false);
+  }
+}, [token, page, searchTerm, estadoFilter, activoFilter]);
+
 
   useEffect(() => {
     fetchExpedientes();
@@ -216,97 +222,122 @@ const RegistroExpediente = () => {
   };
 
   // PUT /expedientes/:codigo_lookup  body { codigo, descripcion }
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!token || !editing || !codigoLookup) return;
-    try {
-      const resp = await fetch(`${apiUrl}${BY_CODE_PATH}/${encodeURIComponent(codigoLookup)}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          codigo: editing.codigo, // nuevo (o mismo)
-          descripcion: editing.descripcion,
-        }),
-      });
-      const json = await safeJson(resp);
-      if (!resp.ok) throw new Error(json?.message ?? "Error al guardar expediente");
+const handleSave = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!token || !editing || !codigoLookup) return;
 
-      closeModal();
-      await Swal.fire({
-        title: "Cambios guardados",
-        text: `El expediente ${editing.codigo} fue actualizado correctamente.`,
-        icon: "success",
-        timer: 1500,
-        showConfirmButton: false,
-      });
-      fetchExpedientes();
-    } catch (error: any) {
-      Swal.fire({
-        title: "Error",
-        text: error?.message ?? "Ocurrió un error al guardar el expediente.",
-        icon: "error",
-      });
+  try {
+    const url = apiUrl(`${BY_CODE_PATH}/${encodeURIComponent(codigoLookup)}`); //  usa apiUrl(path)
+    const resp = await fetch(url, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        codigo: editing.codigo.trim().toUpperCase(),  // opcional: normaliza
+        descripcion: editing.descripcion.trim(),
+      }),
+    });
+
+    const json = await safeJson(resp);
+    if (!resp.ok) throw new Error(json?.message ?? `Error al guardar expediente (HTTP ${resp.status})`);
+
+    // Si tu API devuelve el registro actualizado en json.data, puedes reflejarlo al instante:
+    if (json?.data) {
+      setRows((rows) =>
+        rows.map((r) => (r.codigo === codigoLookup ? normalizeExp(json.data) : r))
+      );
     }
-  };
 
-  // PATCH /expedientes/:codigo/activo -> { activo: boolean }
-  const handleToggleActivo = async (exp: Expediente) => {
-    if (!token) return;
+    closeModal();
+    await Swal.fire({
+      title: "Cambios guardados",
+      text: `El expediente ${editing.codigo} fue actualizado correctamente.`,
+      icon: "success",
+      timer: 1500,
+      showConfirmButton: false,
+    });
 
-    try {
-      if (exp.activo) {
-        const { isConfirmed } = await Swal.fire({
-          title: "Desactivar expediente",
-          text: `¿Desactivar el expediente ${exp.codigo}? Podrás activarlo nuevamente.`,
-          icon: "warning",
-          showCancelButton: true,
-          confirmButtonText: "Sí, desactivar",
-          cancelButtonText: "Cancelar",
-          reverseButtons: true,
-          focusCancel: true,
-          confirmButtonColor: "#ea580c",
-          cancelButtonColor: "#6b7280",
-        });
-        if (!isConfirmed) return;
-      }
+    // Refresca por si cambió la paginación o filtros en servidor
+    fetchExpedientes();
+  } catch (error: any) {
+    Swal.fire({
+      title: "Error",
+      text: error?.message ?? "Ocurrió un error al guardar el expediente.",
+      icon: "error",
+    });
+  }
+};
 
-      setToggling((p) => ({ ...p, [exp.codigo]: true }));
 
-      const resp = await fetch(`${apiUrl}${BY_CODE_PATH}/${encodeURIComponent(exp.codigo)}/activo`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
-        body: JSON.stringify({ activo: !exp.activo }),
+// PATCH /expedientes/:codigo/activo -> { activo: boolean }
+const handleToggleActivo = async (exp: Expediente) => {
+  if (!token) return;
+
+  try {
+    if (exp.activo) {
+      const { isConfirmed } = await Swal.fire({
+        title: "Desactivar expediente",
+        text: `¿Desactivar el expediente ${exp.codigo}? Podrás activarlo nuevamente.`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Sí, desactivar",
+        cancelButtonText: "Cancelar",
+        reverseButtons: true,
+        focusCancel: true,
+        confirmButtonColor: "#ea580c",
+        cancelButtonColor: "#6b7280",
       });
-      const json = await safeJson(resp);
-      if (!resp.ok) throw new Error(json?.message ?? "No se pudo cambiar el estado");
-
-      await Swal.fire({
-        title: exp.activo ? "Expediente desactivado" : "Expediente activado",
-        text: `El expediente ${exp.codigo} se ${exp.activo ? "desactivó" : "activó"} correctamente.`,
-        icon: "success",
-        timer: 1500,
-        showConfirmButton: false,
-      });
-
-      fetchExpedientes();
-    } catch (error: any) {
-      Swal.fire({
-        title: "Error",
-        text: error?.message ?? "Ocurrió un error al cambiar el estado del expediente.",
-        icon: "error",
-      });
-    } finally {
-      setToggling((p) => ({ ...p, [exp.codigo]: false }));
+      if (!isConfirmed) return;
     }
-  };
+
+    setToggling((p) => ({ ...p, [exp.codigo]: true }));
+
+    //  usa apiUrl(path)
+    const url = apiUrl(`${BY_CODE_PATH}/${encodeURIComponent(exp.codigo)}/activo`);
+    const resp = await fetch(url, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ activo: !exp.activo }),
+    });
+
+    const json = await safeJson(resp);
+    if (!resp.ok) throw new Error(json?.message ?? "No se pudo cambiar el estado");
+
+    //  Update optimista inmediato (sin esperar al refetch)
+    setRows((rows) =>
+      rows.map((r) =>
+        r.codigo === exp.codigo ? { ...r, activo: !r.activo } : r
+      )
+    );
+
+    await Swal.fire({
+      title: exp.activo ? "Expediente desactivado" : "Expediente activado",
+      text: `El expediente ${exp.codigo} se ${exp.activo ? "desactivó" : "activó"} correctamente.`,
+      icon: "success",
+      timer: 1500,
+      showConfirmButton: false,
+    });
+
+    //  Asegura sincronización con servidor (por si cambian filtros/paginación)
+    fetchExpedientes();
+  } catch (error: any) {
+    Swal.fire({
+      title: "Error",
+      text: error?.message ?? "Ocurrió un error al cambiar el estado del expediente.",
+      icon: "error",
+    });
+  } finally {
+    setToggling((p) => ({ ...p, [exp.codigo]: false }));
+  }
+};
+
 
   // UI
   return (
@@ -423,11 +454,11 @@ const RegistroExpediente = () => {
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Descripción
                     </th>
-                    {/* 👇 NUEVO: Técnico */}
+                    {/*  NUEVO: Técnico */}
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Técnico
                     </th>
-                    {/* 👇 NUEVO: Aprobador */}
+                    {/*  NUEVO: Aprobador */}
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Aprobador
                     </th>
@@ -620,7 +651,7 @@ const RegistroExpediente = () => {
                     />
                   </div>
 
-                  {/* 👇 Solo lectura: técnico y aprobador */}
+                  {/*  Solo lectura: técnico y aprobador */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-1">Técnico</label>

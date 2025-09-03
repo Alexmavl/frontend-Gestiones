@@ -8,14 +8,12 @@ import {
   UserGroupIcon,
   ShieldCheckIcon,
   EnvelopeIcon,
-  //CheckCircleIcon,
-  //XCircleIcon,
   MagnifyingGlassIcon,
   FunnelIcon,
 } from "@heroicons/react/24/solid";
 import Swal from "sweetalert2";
 import "sweetalert2/dist/sweetalert2.min.css";
-import { apiUrl } from '../config/env';
+import { apiUrl } from "../config/env";
 
 type Rol = "coordinador" | "tecnico" | "usuario";
 interface Usuario {
@@ -28,7 +26,6 @@ interface Usuario {
   actualizado_en?: string | null;
 }
 
-
 const LIST_PATH = "/usuarios"; // GET (listar/buscar)
 const BY_ID_PATH = "/usuarios"; // PUT/PATCH by :id
 const PAGE_SIZE = 10;
@@ -39,11 +36,7 @@ async function safeJson(resp: Response) {
   if (resp.status === 204) return {};
   if (!ct.includes("application/json")) {
     const text = await resp.text().catch(() => "");
-    try {
-      return text ? JSON.parse(text) : {};
-    } catch {
-      return { raw: text };
-    }
+    try { return text ? JSON.parse(text) : {}; } catch { return { raw: text }; }
   }
   return resp.json().catch(() => ({}));
 }
@@ -129,22 +122,24 @@ const RegistroUsuario = () => {
     if (!token) return;
     setLoading(true);
     try {
-      const url = new URL(`${apiUrl}${LIST_PATH}`);
-      url.searchParams.set("page", String(page));
-      url.searchParams.set("pageSize", String(PAGE_SIZE));
-      if (searchTerm.trim()) url.searchParams.set("q", searchTerm.trim());
-      if (activoFilter !== "todos") url.searchParams.set("activo", activoFilter === "activo" ? "true" : "false");
-      // NOTA: tu SP no filtra por rol; si lo agregas, podrías pasar &rol=...
-      url.searchParams.set("_", String(Date.now())); // anti-cache
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("pageSize", String(PAGE_SIZE));
+      if (searchTerm.trim()) params.set("q", searchTerm.trim());
+      if (activoFilter !== "todos") params.set("activo", activoFilter === "activo" ? "true" : "false");
+      // si tu SP soporta rol, aquí podrías: if (rolFilter !== "todos") params.set("rol", rolFilter);
+      params.set("_", String(Date.now())); // anti-cache
 
-      const resp = await fetch(url.toString(), {
+      const requestUrl = apiUrl(`${LIST_PATH}?${params.toString()}`);
+      const resp = await fetch(requestUrl, {
         headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
       });
       const json: any = await safeJson(resp);
       if (!resp.ok) throw new Error(json?.message ?? "No se pudo listar");
 
       let serverRows: any[] = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
-      // Filtrado por rol en cliente (si no está en el SP)
+
+      // Filtrado por rol en cliente (si el SP aún no filtra por rol)
       if (rolFilter !== "todos") {
         serverRows = serverRows.filter((u) => String(u.rol) === rolFilter);
       }
@@ -188,7 +183,7 @@ const RegistroUsuario = () => {
     if (!token || !editing) return;
 
     const nombre = editing.nombre.trim();
-    const email = editing.email.trim();
+    const email = editing.email.trim().toLowerCase();
 
     if (!nombre || !email) {
       await Swal.fire({ title: "Datos incompletos", text: "Nombre y email son obligatorios.", icon: "warning" });
@@ -200,7 +195,8 @@ const RegistroUsuario = () => {
     }
 
     try {
-      const resp = await fetch(`${apiUrl}${BY_ID_PATH}/${editing.id}`, {
+      const url = apiUrl(`${BY_ID_PATH}/${encodeURIComponent(editing.id)}`);
+      const resp = await fetch(url, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -227,6 +223,8 @@ const RegistroUsuario = () => {
         timer: 1500,
         showConfirmButton: false,
       });
+
+      // Refresca por si cambió algún filtro/paginación en servidor
       fetchUsuarios();
     } catch (error: any) {
       Swal.fire({
@@ -260,7 +258,8 @@ const RegistroUsuario = () => {
 
       setToggling((p) => ({ ...p, [u.id]: true }));
 
-      const resp = await fetch(`${apiUrl}${BY_ID_PATH}/${u.id}/activo`, {
+      const url = apiUrl(`${BY_ID_PATH}/${encodeURIComponent(u.id)}/activo`);
+      const resp = await fetch(url, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -291,8 +290,6 @@ const RegistroUsuario = () => {
       setToggling((p) => ({ ...p, [u.id]: false }));
     }
   };
-
-  
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-6">
@@ -444,16 +441,15 @@ const RegistroUsuario = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <div className="flex items-center justify-center gap-2">
                           <Toggle
-  checked={u.activo}
-  onChange={() => handleToggleActivo(u)}
-  disabled={!!toggling[String(u.id)]}
-  label={`Alternar activo para ${u.nombre}`}
-/>
+                            checked={u.activo}
+                            onChange={() => handleToggleActivo(u)}
+                            disabled={!!toggling[u.id]}
+                            label={`Alternar activo para ${u.nombre}`}
+                          />
 
-{toggling?.[String(u.id)] && (
-  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-)}
-
+                          {toggling[u.id] && (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
@@ -496,27 +492,26 @@ const RegistroUsuario = () => {
                 </button>
 
                 {/* Números de página (simple, con ventana) */}
-                {Array.from({ length: totalPages }).slice(
-                  Math.max(0, page - 3),
-                  Math.max(0, page - 3) + Math.min(5, totalPages)
-                ).map((_, idx) => {
-                  const pageNum = Math.max(1, page - 2) + idx;
-                  if (pageNum > totalPages) return null;
-                  const active = pageNum === page;
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setPage(pageNum)}
-                      className={`px-3 py-2 rounded-lg border ${
-                        active
-                          ? "bg-blue-600 border-blue-600 text-white"
-                          : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
+                {Array.from({ length: totalPages })
+                  .slice(Math.max(0, page - 3), Math.max(0, page - 3) + Math.min(5, totalPages))
+                  .map((_, idx) => {
+                    const pageNum = Math.max(1, page - 2) + idx;
+                    if (pageNum > totalPages) return null;
+                    const active = pageNum === page;
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setPage(pageNum)}
+                        className={`px-3 py-2 rounded-lg border ${
+                          active
+                            ? "bg-blue-600 border-blue-600 text-white"
+                            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
 
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}

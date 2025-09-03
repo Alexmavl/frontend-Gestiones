@@ -11,14 +11,14 @@ import {
   MagnifyingGlassIcon,
   XMarkIcon,
 } from "@heroicons/react/24/solid";
-import { apiUrl } from '../config/env';
+import { apiUrl } from "../config/env";
 
 interface Indicio {
   id: string;
   descripcion: string | null;
   color: string | null;
   tamano: string | null;
-  peso: number | null;
+  peso: number | null; // kg
   ubicacion: string | null;
   tecnico_id?: string;
 }
@@ -41,8 +41,11 @@ interface Expediente {
   indicios: Indicio[];
 }
 
+// Endpoints: GET con E mayúscula; mutaciones en minúscula
+const EXP_LIST_PATH = "/Expedientes";   // GET listar y GET por código
+const EXP_MUT_PATH  = "/expedientes";   // PATCH estado
+const IND_PATH      = "/Indicios";      // GET indicios por expediente
 
-const LIST_PATH = "/expedientes";
 const PAGE_SIZE = 10;
 
 /** ====== Helpers ====== */
@@ -51,11 +54,7 @@ async function safeJson(resp: Response) {
   if (resp.status === 204) return {};
   if (!ct.includes("application/json")) {
     const text = await resp.text().catch(() => "");
-    try {
-      return text ? JSON.parse(text) : {};
-    } catch {
-      return { raw: text };
-    }
+    try { return text ? JSON.parse(text) : {}; } catch { return { raw: text }; }
   }
   return resp.json().catch(() => ({}));
 }
@@ -71,7 +70,7 @@ function toExpediente(exp: any, indicios: Indicio[]): Expediente {
     // nombre del técnico puede venir con distintas llaves
     tecnico_nombre:
       exp?.tecnico_nombre ??
-      exp?.tecnico_username ?? // si lo aliaste así en el SP
+      exp?.tecnico_username ?? // alias en SP
       exp?.tecnico?.nombre ??
       exp?.tecnico?.username ??
       "",
@@ -102,7 +101,8 @@ function normalizeIndicio(r: any): Indicio {
     descripcion: r?.descripcion ?? null,
     color: r?.color ?? null,
     tamano: r?.tamano ?? null,
-    peso: r?.peso ?? null,
+    // fuerza a number si viene string; si no hay valor -> null
+    peso: r?.peso === undefined || r?.peso === null ? null : Number(r?.peso),
     ubicacion: r?.ubicacion ?? null,
     tecnico_id: r?.tecnico_id != null ? String(r?.tecnico_id) : undefined,
   };
@@ -146,17 +146,20 @@ const RevisarExpedientes = () => {
     )}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
   };
 
-  // Cargar indicios por código (paginado 50) — tu ruta con "E" mayúscula
+  // Cargar indicios por código (paginado 50) — ruta con "E" mayúscula
   const fetchIndiciosDe = async (codigo: string) => {
-    const url = new URL(`${apiUrl}/Expedientes/${encodeURIComponent(codigo)}/Indicios`);
-    url.searchParams.set("q", "");
-    url.searchParams.set("page", "1");
-    url.searchParams.set("pageSize", "50");
+    const params = new URLSearchParams();
+    params.set("q", "");
+    params.set("page", "1");
+    params.set("pageSize", "50");
+    params.set("_", String(Date.now()));
+
+    const url = apiUrl(`${EXP_LIST_PATH}/${encodeURIComponent(codigo)}${IND_PATH}?${params.toString()}`);
 
     try {
-      const indRes = await fetch(url.toString(), { headers: authHeaders });
-      const j = await safeJson(indRes);
-      const rows: any[] = Array.isArray(j) ? j : (j as any)?.data ?? [];
+      const indRes = await fetch(url, { headers: authHeaders });
+      const j: any = await safeJson(indRes);
+      const rows: any[] = Array.isArray(j?.data) ? j.data : Array.isArray(j) ? j : [];
       return rows.map(normalizeIndicio);
     } catch {
       return [];
@@ -168,9 +171,10 @@ const RevisarExpedientes = () => {
     setLoading(true);
     try {
       if (codigo && codigo.trim()) {
-        const res = await fetch(`${apiUrl}/expedientes/${encodeURIComponent(codigo.trim())}`, {
-          headers: authHeaders,
-        });
+        // GET por código usando /Expedientes/:codigo (mayúscula)
+        const url = apiUrl(`${EXP_LIST_PATH}/${encodeURIComponent(codigo.trim())}?_=${Date.now()}`);
+        const res = await fetch(url, { headers: authHeaders });
+
         if (res.status === 404) {
           setExpedientes([]);
           setTotal(0);
@@ -191,6 +195,7 @@ const RevisarExpedientes = () => {
         const data = await safeJson(res);
         const expBase: any =
           (Array.isArray(data) ? data[0] : (data as any)?.data ?? data) ?? null;
+
         if (!expBase) {
           setExpedientes([]);
           setTotal(0);
@@ -210,22 +215,21 @@ const RevisarExpedientes = () => {
         setTotal(1);
         setPage(1);
       } else {
-        const url = new URL(`${apiUrl}${LIST_PATH}`);
-        url.searchParams.set("page", String(page));
-        url.searchParams.set("pageSize", String(PAGE_SIZE));
-        url.searchParams.set("_", String(Date.now()));
+        // GET paginado /Expedientes
+        const params = new URLSearchParams();
+        params.set("page", String(page));
+        params.set("pageSize", String(PAGE_SIZE));
+        params.set("_", String(Date.now()));
 
-        const expRes = await fetch(url.toString(), { headers: authHeaders });
+        const url = apiUrl(`${EXP_LIST_PATH}?${params.toString()}`);
+        const expRes = await fetch(url, { headers: authHeaders });
         if (!expRes.ok) throw new Error("No se pudo obtener expedientes");
 
-        const raw = await safeJson(expRes);
-        const rows: any[] = Array.isArray((raw as any)?.data)
-          ? (raw as any).data
-          : Array.isArray(raw)
-          ? (raw as any)
-          : [];
-        const totalServer = Number((raw as any)?.total ?? rows.length ?? 0);
+        const raw: any = await safeJson(expRes);
+        const rows: any[] = Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
+        const totalServer = Number(raw?.total ?? rows.length ?? 0);
 
+        // Cargar indicios por cada expediente (N+1 requests)
         const withIndicios: Expediente[] = await Promise.all(
           rows.map(async (exp: any) => {
             const indicios = await fetchIndiciosDe(exp.codigo);
@@ -316,7 +320,9 @@ const RevisarExpedientes = () => {
     if (!confirm.isConfirmed) return;
 
     try {
-      const resp = await fetch(`${apiUrl}/expedientes/${encodeURIComponent(codigo)}/estado`, {
+      // PATCH en minúscula
+      const url = apiUrl(`${EXP_MUT_PATH}/${encodeURIComponent(codigo)}/estado`);
+      const resp = await fetch(url, {
         method: "PATCH",
         headers: authHeaders,
         body: JSON.stringify({ estado: "aprobado", justificacion: "" }),
@@ -403,7 +409,8 @@ const RevisarExpedientes = () => {
     }
 
     try {
-      const resp = await fetch(`${apiUrl}/expedientes/${encodeURIComponent(codigo)}/estado`, {
+      const url = apiUrl(`${EXP_MUT_PATH}/${encodeURIComponent(codigo)}/estado`);
+      const resp = await fetch(url, {
         method: "PATCH",
         headers: authHeaders,
         body: JSON.stringify({ estado: "rechazado", justificacion: rechazoJustificacion }),
@@ -600,7 +607,7 @@ const RevisarExpedientes = () => {
                             <strong>{indicio.descripcion || "Sin descripción"}</strong>
                             {indicio.color && <> – Color: {indicio.color}</>}
                             {indicio.tamano && <> | Tamaño: {indicio.tamano}</>}
-                            {indicio.peso !== null && <> | Peso: {indicio.peso}g</>}
+                            {indicio.peso !== null && <> | Peso: {indicio.peso} kg</>}
                             {indicio.ubicacion && <> | Ubicación: {indicio.ubicacion}</>}
                           </li>
                         ))
